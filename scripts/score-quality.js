@@ -1,26 +1,23 @@
 /**
- * score-quality.js
+ * score-quality.js  (week 3 — real data)
  *
- * Computes a BestBowl quality score for every product that does not yet have a
- * quality_scores row, or whose row is more than 7 days old, and upserts the
- * result back into `quality_scores`.
+ * Recalculates quality_scores using REAL ingredient data from the `ingredients`
+ * table (imported from Open Pet Food Facts) and REAL recall counts from the
+ * `recalls` table (imported from openFDA), falling back to the original
+ * hardcoded mock data per brand when a product has no real ingredient row yet.
  *
- * Ingredient data is mocked per brand for now (see BRAND_DATA below); a later
- * version will derive it from real ingredient panels / FDA recall data.
+ * Scoring (unchanged ranges, week-3 formula):
+ *   Ingredient (0-5):
+ *     first_ingredient named meat = 2, meat meal = 1, else 0
+ *     protein > 30% = 1.5, 25-30% = 1, < 25% = 0
+ *     - 0.5 per filler present (corn / wheat / soy)
+ *     - 1.0 if artificial preservatives (BHA/BHT/ethoxyquin)
+ *     - 0.5 if by-products
+ *     (clamped to [0, 5])
+ *   Safety (0-3): 0 recalls = 3, 1 = 1.5, 2+ = 0   (last 5 years)
+ *   AAFCO (0-2): aafco_certified (kept from existing quality_scores) = 2 else 0
  *
- * Scoring (max 10):
- *   Ingredient score (0-5)
- *     - first ingredient named meat = 2, meat meal = 1, else 0
- *     - protein > 30% = 1.5, 25-30% = 1, < 25% = 0
- *     - no corn/wheat/soy in first 5 = 1, one = 0.5, two+ = 0
- *     - no artificial preservatives (BHA/BHT/ethoxyquin) = 0.5
- *   Safety score (0-3)
- *     - 0 recalls (last 5 yrs) = 3, 1 recall = 1.5, 2+ = 0
- *   AAFCO score (0-2)
- *     - AAFCO statement present = 2, else 0
- *
- * Environment variables: see import-chewy.js / .env.example. Writing requires
- * the service role key (RLS bypass).
+ * Env: SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (writes bypass RLS).
  */
 
 require('dotenv').config();
@@ -28,22 +25,14 @@ require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY =
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error(
-    'Missing SUPABASE_URL or SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY. ' +
+    '[ERROR] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. ' +
       'Copy .env.example to .env and fill it in.'
   );
   process.exit(1);
-}
-
-if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-  console.warn(
-    '⚠  SUPABASE_SERVICE_ROLE_KEY not set — using the anon key. Writes will be ' +
-      'blocked by RLS. Set the service role key to write scores.\n'
-  );
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
@@ -51,205 +40,157 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 });
 
 const NAMED_MEATS = [
-  'chicken',
-  'beef',
-  'salmon',
-  'turkey',
-  'lamb',
-  'duck',
-  'venison',
-  'buffalo',
-  'bison',
+  'chicken', 'beef', 'salmon', 'turkey', 'lamb', 'duck', 'venison',
+  'buffalo', 'bison', 'fish', 'whitefish', 'pork', 'rabbit',
 ];
 
-// Mock ingredient data keyed by brand. has_fillers = corn/wheat/soy in top 5.
-const BRAND_DATA = {
-  'Blue Buffalo': {
-    first_ingredient: 'Deboned Chicken',
-    protein_percent: 26,
-    has_fillers: false,
-    recall_count: 1,
-    aafco_certified: true,
-  },
-  'Purina Pro Plan': {
-    first_ingredient: 'Chicken',
-    protein_percent: 30,
-    has_fillers: false,
-    recall_count: 0,
-    aafco_certified: true,
-  },
-  'Royal Canin': {
-    first_ingredient: 'Chicken By-Product Meal',
-    protein_percent: 28,
-    has_fillers: true,
-    recall_count: 0,
-    aafco_certified: true,
-  },
-  "Hill's Science Diet": {
-    first_ingredient: 'Chicken',
-    protein_percent: 25,
-    has_fillers: true,
-    recall_count: 1,
-    aafco_certified: true,
-  },
-  Wellness: {
-    first_ingredient: 'Deboned Chicken',
-    protein_percent: 28,
-    has_fillers: false,
-    recall_count: 0,
-    aafco_certified: true,
-  },
-  'Taste of the Wild': {
-    first_ingredient: 'Buffalo',
-    protein_percent: 32,
-    has_fillers: false,
-    recall_count: 1,
-    aafco_certified: true,
-  },
-  Merrick: {
-    first_ingredient: 'Deboned Beef',
-    protein_percent: 34,
-    has_fillers: false,
-    recall_count: 0,
-    aafco_certified: true,
-  },
-  Orijen: {
-    first_ingredient: 'Deboned Chicken',
-    protein_percent: 38,
-    has_fillers: false,
-    recall_count: 0,
-    aafco_certified: true,
-  },
-  Acana: {
-    first_ingredient: 'Deboned Chicken',
-    protein_percent: 35,
-    has_fillers: false,
-    recall_count: 0,
-    aafco_certified: true,
-  },
-  Iams: {
-    first_ingredient: 'Chicken',
-    protein_percent: 27,
-    has_fillers: true,
-    recall_count: 0,
-    aafco_certified: true,
-  },
+// Fallback mock ingredient data per brand (used when no `ingredients` row).
+const MOCK = {
+  'Blue Buffalo':       { first_ingredient: 'Deboned Chicken', protein_percent: 26, has_fillers: false },
+  'Purina Pro Plan':    { first_ingredient: 'Chicken', protein_percent: 30, has_fillers: false },
+  'Royal Canin':        { first_ingredient: 'Chicken By-Product Meal', protein_percent: 28, has_fillers: true },
+  "Hill's Science Diet":{ first_ingredient: 'Chicken', protein_percent: 25, has_fillers: true },
+  'Wellness':           { first_ingredient: 'Deboned Chicken', protein_percent: 28, has_fillers: false },
+  'Taste of the Wild':  { first_ingredient: 'Buffalo', protein_percent: 32, has_fillers: false },
+  'Merrick':            { first_ingredient: 'Deboned Beef', protein_percent: 34, has_fillers: false },
+  'Orijen':             { first_ingredient: 'Deboned Chicken', protein_percent: 38, has_fillers: false },
+  'Acana':              { first_ingredient: 'Deboned Chicken', protein_percent: 35, has_fillers: false },
+  'Iams':               { first_ingredient: 'Chicken', protein_percent: 27, has_fillers: true },
 };
 
-/** Returns 2 for a named meat, 1 for a meat meal, 0 otherwise. */
+const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+const round1 = (n) => Math.round(n * 10) / 10;
+
 function firstIngredientPoints(firstIngredient) {
   if (!firstIngredient) return 0;
   const lower = firstIngredient.toLowerCase();
-  const isMeat = NAMED_MEATS.some((m) => lower.includes(m));
-  if (!isMeat) return 0;
-  // "chicken meal", "chicken by-product meal", etc. score as a meat meal.
+  if (!NAMED_MEATS.some((m) => lower.includes(m))) return 0;
   if (lower.includes('meal') || lower.includes('by-product')) return 1;
   return 2;
 }
 
-function proteinPoints(proteinPercent) {
-  if (proteinPercent == null) return 0;
-  if (proteinPercent > 30) return 1.5;
-  if (proteinPercent >= 25) return 1;
+function proteinPoints(p) {
+  if (p == null) return 0;
+  if (p > 30) return 1.5;
+  if (p >= 25) return 1;
   return 0;
 }
 
-// has_fillers is a boolean in the mock data; treat true as "one filler present"
-// (0.5) and false as "none" (1). The full corn/wheat/soy count will replace
-// this once real ingredient panels are wired in.
-function fillerPoints(hasFillers) {
-  return hasFillers ? 0.5 : 1;
+function ingredientScore(d) {
+  let s = firstIngredientPoints(d.first_ingredient) + proteinPoints(d.protein_percent);
+  const fillers = (d.has_corn ? 1 : 0) + (d.has_wheat ? 1 : 0) + (d.has_soy ? 1 : 0);
+  s -= 0.5 * fillers;
+  if (d.has_artificial_preservatives) s -= 1;
+  if (d.has_byproducts) s -= 0.5;
+  return clamp(s, 0, 5);
 }
 
-function preservativePoints(hasArtificialPreservatives) {
-  return hasArtificialPreservatives ? 0 : 0.5;
-}
-
-function safetyPoints(recallCount) {
+function safetyScore(recallCount) {
   if (recallCount >= 2) return 0;
   if (recallCount === 1) return 1.5;
   return 3;
 }
 
-function aafcoPoints(aafcoCertified) {
-  return aafcoCertified ? 2 : 0;
-}
+const aafcoScore = (certified) => (certified ? 2 : 0);
 
-function scoreProduct(data) {
-  const ingredient =
-    firstIngredientPoints(data.first_ingredient) +
-    proteinPoints(data.protein_percent) +
-    fillerPoints(data.has_fillers) +
-    preservativePoints(data.has_artificial_preservatives === true);
-
-  const safety = safetyPoints(data.recall_count);
-  const aafco = aafcoPoints(data.aafco_certified);
-
-  const overall = Math.round((ingredient + safety + aafco) * 10) / 10;
-
-  return {
-    ingredient_score: Math.round(ingredient * 10) / 10,
-    safety_score: safety,
-    aafco_score: aafco,
-    overall_score: overall,
-  };
-}
-
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-
-async function loadProductsNeedingScore() {
-  const { data: products, error: prodErr } = await supabase
-    .from('products')
-    .select('upc, name, brand');
-  if (prodErr) throw prodErr;
-
-  const { data: scores, error: scoreErr } = await supabase
-    .from('quality_scores')
-    .select('upc, scored_at');
-  if (scoreErr) throw scoreErr;
-
-  const scoredAtByUpc = new Map(scores.map((s) => [s.upc, s.scored_at]));
-  const cutoff = Date.now() - SEVEN_DAYS_MS;
-
-  return products.filter((p) => {
-    const scoredAt = scoredAtByUpc.get(p.upc);
-    if (!scoredAt) return true; // never scored
-    return new Date(scoredAt).getTime() < cutoff; // older than 7 days
-  });
-}
+const FIVE_YEARS_AGO = (() => {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 5);
+  return d;
+})();
 
 async function run() {
-  const products = await loadProductsNeedingScore();
-  console.log(`${products.length} product(s) need scoring.\n`);
+  const [{ data: products, error: pErr },
+         { data: ingredients, error: iErr },
+         { data: scores, error: sErr },
+         { data: recalls, error: rErr }] = await Promise.all([
+    supabase.from('products').select('upc, brand'),
+    supabase.from('ingredients').select('*'),
+    supabase.from('quality_scores').select('upc, aafco_certified, recall_count, first_ingredient, protein_percent'),
+    supabase.from('recalls').select('brand, recall_date'),
+  ]);
+  if (pErr) throw pErr;
+  if (iErr) throw iErr;
+  if (sErr) throw sErr;
+  if (rErr) throw rErr;
 
-  let scored = 0;
-  const skipped = [];
+  const ingByUpc = new Map(ingredients.map((r) => [r.upc, r]));
+  const qsByUpc = new Map(scores.map((r) => [r.upc, r]));
+
+  // Real recall counts (last 5 years) per brand, only if recalls were imported.
+  const recallsImported = recalls.length > 0;
+  const recallCountByBrand = new Map();
+  for (const rec of recalls) {
+    const recent = !rec.recall_date || new Date(rec.recall_date) >= FIVE_YEARS_AGO;
+    if (!recent) continue;
+    recallCountByBrand.set(rec.brand, (recallCountByBrand.get(rec.brand) || 0) + 1);
+  }
+
+  let real = 0;
+  let mock = 0;
   const errors = [];
 
   for (const product of products) {
-    const data = BRAND_DATA[product.brand];
-    if (!data) {
-      skipped.push({ upc: product.upc, brand: product.brand });
-      console.warn(
-        `  skipped  ${product.upc}  no ingredient data for brand "${product.brand}"`
-      );
-      continue;
-    }
-
     try {
-      const s = scoreProduct(data);
+      const ing = ingByUpc.get(product.upc);
+      const qs = qsByUpc.get(product.upc) || {};
+      let data;
+      let source;
+
+      if (ing) {
+        source = 'real';
+        data = {
+          first_ingredient: ing.first_ingredient,
+          protein_percent: ing.protein_percent,
+          has_corn: ing.has_corn,
+          has_wheat: ing.has_wheat,
+          has_soy: ing.has_soy,
+          has_artificial_preservatives: ing.has_artificial_preservatives,
+          has_byproducts: ing.has_byproducts,
+        };
+      } else {
+        source = 'mock';
+        const m = MOCK[product.brand];
+        if (!m) {
+          console.warn(`[skip] ${product.upc} no real or mock data for brand "${product.brand}"`);
+          continue;
+        }
+        data = {
+          first_ingredient: m.first_ingredient,
+          protein_percent: m.protein_percent,
+          // mock only knows "has_fillers" — treat as a single filler
+          has_corn: m.has_fillers,
+          has_wheat: false,
+          has_soy: false,
+          has_artificial_preservatives: false,
+          has_byproducts: /by-product/i.test(m.first_ingredient || ''),
+        };
+      }
+
+      // recall count: real from recalls table if imported, else existing value
+      const recallCount = recallsImported
+        ? recallCountByBrand.get(product.brand) || 0
+        : qs.recall_count || 0;
+
+      const aafcoCertified = qs.aafco_certified === true;
+
+      const ingredient = ingredientScore(data);
+      const safety = safetyScore(recallCount);
+      const aafco = aafcoScore(aafcoCertified);
+      const overall = round1(ingredient + safety + aafco);
+
       const row = {
         upc: product.upc,
-        overall_score: s.overall_score,
-        ingredient_score: s.ingredient_score,
-        safety_score: s.safety_score,
-        aafco_score: s.aafco_score,
+        overall_score: overall,
+        ingredient_score: round1(ingredient),
+        safety_score: safety,
+        aafco_score: aafco,
         first_ingredient: data.first_ingredient,
         protein_percent: data.protein_percent,
-        recall_count: data.recall_count,
-        aafco_certified: data.aafco_certified,
-        has_fillers: data.has_fillers,
-        scoring_notes: `ingredient ${s.ingredient_score}/5, safety ${s.safety_score}/3, aafco ${s.aafco_score}/2`,
+        recall_count: recallCount,
+        aafco_certified: aafcoCertified,
+        has_fillers: Boolean(data.has_corn || data.has_wheat || data.has_soy),
+        scoring_notes: `source=${source}; ingredient ${round1(ingredient)}/5, safety ${safety}/3, aafco ${aafco}/2`,
         scored_at: new Date().toISOString(),
       };
 
@@ -258,20 +199,20 @@ async function run() {
         .upsert(row, { onConflict: 'upc' });
       if (error) throw error;
 
-      scored += 1;
-      console.log(
-        `  scored   ${product.upc}  ${product.brand}  →  ${s.overall_score}/10`
-      );
+      if (source === 'real') real += 1;
+      else mock += 1;
+      console.log(`[${source}] ${product.upc} ${product.brand} → ${overall}/10 (recalls: ${recallCount})`);
     } catch (err) {
       errors.push({ upc: product.upc, message: err.message });
-      console.error(`  ERROR    ${product.upc}  ${err.message}`);
+      console.error(`[ERROR] ${product.upc}: ${err.message}`);
     }
   }
 
   console.log('\n--- Scoring summary ---');
-  console.log(`Scored:  ${scored}`);
-  console.log(`Skipped: ${skipped.length}`);
-  console.log(`Errors:  ${errors.length}`);
+  console.log(`Scored with REAL ingredient data: ${real}`);
+  console.log(`Scored with MOCK fallback data:   ${mock}`);
+  console.log(`Recall data source: ${recallsImported ? 'real (recalls table)' : 'existing/mock (no FDA import yet)'}`);
+  console.log(`Errors: ${errors.length}`);
   if (errors.length) {
     console.log(JSON.stringify(errors, null, 2));
     process.exit(1);
@@ -279,6 +220,6 @@ async function run() {
 }
 
 run().catch((err) => {
-  console.error('Fatal error:', err.message);
+  console.error('[FATAL] score-quality:', err.message);
   process.exit(1);
 });

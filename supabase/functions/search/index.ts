@@ -97,33 +97,54 @@ Deno.serve(async (req) => {
   const upcs = products.map((p) => p.upc);
 
   // ---- prices + quality_scores ----
-  const [{ data: prices, error: priceErr }, { data: scores, error: scoreErr }] =
-    await Promise.all([
-      supabase
-        .from("prices")
-        .select(
-          "upc, store, price, autoship_price, subscribe_save_price, in_stock, affiliate_url",
-        )
-        .in("upc", upcs),
-      supabase.from("quality_scores").select("upc, overall_score").in("upc", upcs),
-    ]);
+  // prices + quality_scores + ingredients (joined client-side by upc)
+  const [
+    { data: prices, error: priceErr },
+    { data: scores, error: scoreErr },
+    { data: ingredients, error: ingErr },
+  ] = await Promise.all([
+    supabase
+      .from("prices")
+      .select(
+        "upc, store, price, autoship_price, subscribe_save_price, in_stock, affiliate_url",
+      )
+      .in("upc", upcs),
+    supabase
+      .from("quality_scores")
+      .select(
+        "upc, overall_score, ingredient_score, safety_score, aafco_score, first_ingredient, protein_percent, recall_count",
+      )
+      .in("upc", upcs),
+    supabase
+      .from("ingredients")
+      .select("upc, first_ingredient, protein_percent")
+      .in("upc", upcs),
+  ]);
   if (priceErr) return json({ error: priceErr.message }, 500);
   if (scoreErr) return json({ error: scoreErr.message }, 500);
+  if (ingErr) return json({ error: ingErr.message }, 500);
 
   const pricesByUpc = new Map<string, PriceRow[]>();
   for (const row of (prices ?? []) as PriceRow[]) {
     if (!pricesByUpc.has(row.upc)) pricesByUpc.set(row.upc, []);
     pricesByUpc.get(row.upc)!.push(row);
   }
-  const scoreByUpc = new Map<string, number>();
-  for (const row of scores ?? []) scoreByUpc.set(row.upc, Number(row.overall_score));
+  // deno-lint-ignore no-explicit-any
+  const scoreByUpc = new Map<string, any>();
+  for (const row of scores ?? []) scoreByUpc.set(row.upc, row);
+  // Presence of an ingredients row means the score used real OPFF data.
+  // deno-lint-ignore no-explicit-any
+  const ingByUpc = new Map<string, any>();
+  for (const row of ingredients ?? []) ingByUpc.set(row.upc, row);
 
   const storesChecked = new Set<string>();
 
   // ---- assemble results ----
   let results = products.map((product) => {
     const productPrices = pricesByUpc.get(product.upc) ?? [];
-    const qualityScore = scoreByUpc.get(product.upc) ?? 0;
+    const qs = scoreByUpc.get(product.upc);
+    const ing = ingByUpc.get(product.upc);
+    const qualityScore = qs ? Number(qs.overall_score) : 0;
 
     // Compare effective prices across all stores for this product.
     const allPrices = productPrices.map(effective);
@@ -177,6 +198,24 @@ Deno.serve(async (req) => {
       brand: product.brand,
       image_url: product.image_url,
       quality_score: qualityScore,
+      score_breakdown: qs
+        ? {
+            ingredient_score: qs.ingredient_score != null ? Number(qs.ingredient_score) : null,
+            safety_score: qs.safety_score != null ? Number(qs.safety_score) : null,
+            aafco_score: qs.aafco_score != null ? Number(qs.aafco_score) : null,
+            overall_quality: qualityScore,
+            // prefer real ingredient values when an OPFF row exists
+            first_ingredient: ing?.first_ingredient ?? qs.first_ingredient ?? null,
+            protein_percent:
+              ing?.protein_percent != null
+                ? Number(ing.protein_percent)
+                : qs.protein_percent != null
+                ? Number(qs.protein_percent)
+                : null,
+            recall_count: qs.recall_count != null ? Number(qs.recall_count) : 0,
+            data_source: ing ? "real" : "mock",
+          }
+        : null,
       price_count: productPrices.length,
       cheapest_option: cheapest,
       savings_vs_most_expensive: savings,

@@ -24,8 +24,10 @@ require('dotenv').config();
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-// Each importer + the env var(s) it needs. `requires: []` means "always run".
+// Ordered pipeline. `requires: []` means "always run" (no API key needed).
+// Pricing importers run first, then quality data, then the scorer recomputes.
 const IMPORTERS = [
+  // --- pricing ---
   { store: 'chewy', script: 'import-chewy.js', requires: [] },
   { store: 'walmart', script: 'import-walmart.js', requires: ['WALMART_API_KEY'] },
   {
@@ -38,6 +40,11 @@ const IMPORTERS = [
     script: 'import-petsmart.js',
     requires: ['RAINFOREST_API_KEY'],
   },
+  // --- quality data (no API key required; openFDA key optional) ---
+  { store: 'opff', script: 'import-opff.js', requires: [] },
+  { store: 'fda', script: 'import-fda-recalls.js', requires: [] },
+  // --- recompute all scores from the freshly imported data ---
+  { store: 'score', script: 'score-quality.js', requires: [] },
 ];
 
 function missingKeys(requires) {
