@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BestBowl — Compare pet food prices & quality</title>
+  <style>
+    :root {
+      --brand: #1D9E75;
+      --brand-dark: #157a5a;
+      --brand-light: #e7f6f0;
+      --ink: #1c2b26;
+      --muted: #6b7c76;
+      --line: #e4eae8;
+      --bg: #f6f9f8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.4;
+    }
+    .wrap { max-width: 620px; margin: 0 auto; padding: 20px 16px 56px; }
+
+    /* Header */
+    header { text-align: center; padding: 24px 0 8px; }
+    .logo {
+      font-size: 30px; font-weight: 800; letter-spacing: -0.5px;
+      color: var(--brand);
+    }
+    .logo span { color: var(--ink); }
+    .tagline { color: var(--muted); font-size: 15px; margin-top: 2px; }
+
+    /* Search */
+    .search-card {
+      background: #fff; border: 1px solid var(--line); border-radius: 16px;
+      padding: 14px; margin-top: 18px; box-shadow: 0 1px 2px rgba(0,0,0,.03);
+    }
+    .search-row { display: flex; gap: 8px; }
+    input[type="text"] {
+      flex: 1; min-width: 0; padding: 13px 14px; font-size: 16px;
+      border: 1px solid var(--line); border-radius: 11px; outline: none;
+    }
+    input[type="text"]:focus { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-light); }
+    button.search-btn {
+      background: var(--brand); color: #fff; border: none; border-radius: 11px;
+      padding: 0 18px; font-size: 16px; font-weight: 600; cursor: pointer;
+    }
+    button.search-btn:active { background: var(--brand-dark); }
+
+    /* Pet toggle */
+    .toggle { display: inline-flex; background: var(--bg); border: 1px solid var(--line);
+      border-radius: 999px; padding: 4px; margin-top: 12px; }
+    .toggle button {
+      border: none; background: transparent; color: var(--muted);
+      padding: 7px 18px; border-radius: 999px; font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+    .toggle button.active { background: var(--brand); color: #fff; }
+
+    /* States */
+    .state { text-align: center; color: var(--muted); padding: 40px 10px; }
+
+    /* Result card */
+    .card {
+      background: #fff; border: 1px solid var(--line); border-radius: 16px;
+      padding: 16px; margin-top: 14px; box-shadow: 0 1px 2px rgba(0,0,0,.03);
+    }
+    .card-top { display: flex; gap: 12px; align-items: flex-start; }
+    .badge {
+      flex: 0 0 auto; width: 50px; height: 50px; border-radius: 50%;
+      background: var(--brand); color: #fff; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; font-weight: 800;
+    }
+    .badge .num { font-size: 18px; line-height: 1; }
+    .badge .lbl { font-size: 8px; letter-spacing: .5px; opacity: .9; margin-top: 1px; }
+    .card-head { flex: 1; min-width: 0; }
+    .pname { font-weight: 700; font-size: 16px; }
+    .pbrand { color: var(--muted); font-size: 13px; margin-top: 2px; }
+    .savings {
+      display: inline-block; margin-top: 8px; background: var(--brand-light);
+      color: var(--brand-dark); font-size: 12px; font-weight: 700;
+      padding: 4px 10px; border-radius: 999px;
+    }
+
+    /* Store rows */
+    .stores { margin-top: 12px; border-top: 1px solid var(--line); }
+    .store {
+      display: flex; align-items: center; gap: 10px; padding: 11px 8px;
+      border-bottom: 1px solid var(--line); border-radius: 10px;
+    }
+    .store.best { background: var(--brand-light); }
+    .store-name { flex: 1; min-width: 0; font-weight: 600; text-transform: capitalize; }
+    .best-tag {
+      font-size: 10px; font-weight: 800; color: #fff; background: var(--brand);
+      padding: 2px 7px; border-radius: 999px; margin-left: 8px; vertical-align: middle;
+    }
+    .price-col { text-align: right; }
+    .price { font-weight: 700; font-size: 15px; }
+    .autoship { font-size: 12px; color: var(--brand-dark); }
+    .vscore { flex: 0 0 auto; text-align: center; min-width: 52px; }
+    .vscore .v { font-weight: 800; font-size: 15px; color: var(--brand); }
+    .vscore .l { font-size: 9px; color: var(--muted); letter-spacing: .4px; }
+    .oos { color: #b33; font-size: 11px; font-weight: 700; }
+
+    footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 28px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">Best<span>Bowl</span></div>
+      <div class="tagline">Compare pet food prices &amp; quality across every store</div>
+    </header>
+
+    <div class="search-card">
+      <div class="search-row">
+        <input id="q" type="text" placeholder="Search a brand or food…" autocomplete="off" />
+        <button class="search-btn" id="go">Search</button>
+      </div>
+      <div class="toggle" id="toggle">
+        <button data-pet="dog" class="active">🐶 Dog</button>
+        <button data-pet="cat">🐱 Cat</button>
+      </div>
+    </div>
+
+    <div id="results"></div>
+
+    <footer>BestBowl demo · prices &amp; quality scores are illustrative</footer>
+  </div>
+
+  <script>
+    // Public anon key (safe to embed) — lets the demo call the search Edge Function.
+    const SUPABASE_URL = "https://skkilfwlehvgxlmrbfsa.supabase.co";
+    const ANON_KEY =
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNra2lsZndsZWh2Z3hsbXJiZnNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyMjUzODcsImV4cCI6MjA5NzgwMTM4N30.cjTf5yhOqTCBNpzWIUIOCt5iAUMdxkDX6Sy4bzd4yEo";
+
+    let petType = "dog";
+
+    const $ = (sel) => document.querySelector(sel);
+    const results = $("#results");
+
+    // Pet toggle
+    $("#toggle").addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      if (!btn) return;
+      petType = btn.dataset.pet;
+      document.querySelectorAll("#toggle button").forEach((b) =>
+        b.classList.toggle("active", b === btn)
+      );
+    });
+
+    $("#go").addEventListener("click", search);
+    $("#q").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") search();
+    });
+
+    const money = (n) => (n == null ? null : "$" + Number(n).toFixed(2));
+
+    async function search() {
+      const q = $("#q").value.trim();
+      if (!q) {
+        results.innerHTML = '<div class="state">Type a brand or food to compare.</div>';
+        return;
+      }
+      results.innerHTML = '<div class="state">Searching…</div>';
+
+      const url =
+        `${SUPABASE_URL}/functions/v1/search` +
+        `?q=${encodeURIComponent(q)}&pet_type=${petType}&sort=value`;
+
+      try {
+        const res = await fetch(url, {
+          headers: { apikey: ANON_KEY, Authorization: "Bearer " + ANON_KEY },
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        render(data.results || []);
+      } catch (err) {
+        results.innerHTML =
+          '<div class="state">Could not load results.<br>' + err.message + "</div>";
+      }
+    }
+
+    function render(items) {
+      if (!items.length) {
+        results.innerHTML = '<div class="state">No matches. Try another search.</div>';
+        return;
+      }
+      results.innerHTML = items.map(card).join("");
+    }
+
+    function card(p) {
+      const score = p.quality_score != null ? Number(p.quality_score).toFixed(1) : "–";
+
+      const savings =
+        p.savings_vs_most_expensive && p.savings_vs_most_expensive > 0
+          ? `<div class="savings">Save up to ${money(p.savings_vs_most_expensive)} vs the priciest store</div>`
+          : "";
+
+      const stores = (p.prices || [])
+        .map((s) => storeRow(s, p.best_value_store))
+        .join("");
+
+      return `
+        <div class="card">
+          <div class="card-top">
+            <div class="badge" title="Quality score">
+              <span class="num">${score}</span><span class="lbl">/10</span>
+            </div>
+            <div class="card-head">
+              <div class="pname">${escapeHtml(p.name || "")}</div>
+              ${p.brand ? `<div class="pbrand">${escapeHtml(p.brand)}</div>` : ""}
+              ${savings}
+            </div>
+          </div>
+          <div class="stores">${stores}</div>
+        </div>`;
+    }
+
+    function storeRow(s, bestStore) {
+      const isBest = s.store === bestStore;
+      const sub =
+        s.autoship_price != null
+          ? `<div class="autoship">autoship ${money(s.autoship_price)}</div>`
+          : s.subscribe_save_price != null
+          ? `<div class="autoship">subscribe &amp; save ${money(s.subscribe_save_price)}</div>`
+          : "";
+      const oos = s.in_stock === false ? '<div class="oos">out of stock</div>' : "";
+      const v = s.value_score != null ? Number(s.value_score).toFixed(1) : "–";
+
+      return `
+        <div class="store ${isBest ? "best" : ""}">
+          <div class="store-name">${escapeHtml(s.store)}${
+        isBest ? '<span class="best-tag">BEST VALUE</span>' : ""
+      }</div>
+          <div class="price-col">
+            <div class="price">${money(s.price) || "—"}</div>
+            ${sub}${oos}
+          </div>
+          <div class="vscore">
+            <div class="v">${v}</div><div class="l">VALUE</div>
+          </div>
+        </div>`;
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, (c) =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
+      );
+    }
+
+    // Prefill a sample search so the demo isn't empty on load.
+    $("#q").value = "chicken";
+    search();
+  </script>
+</body>
+</html>
