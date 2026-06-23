@@ -1,0 +1,122 @@
+[
+  {
+    "upc": "859610005478",
+    "name": "Blue Buffalo Life Protection Formula Adult Chicken & Brown Rice",
+    "brand": "Blue Buffalo",
+    "category": "dog_dry",
+    "life_stage": "adult",
+    "weight_lbs": 30,
+    "price": 54.98,
+    "autoship_price": 46.73,
+    "image_url": "https://placehold.co/200x200",
+    "affiliate_url": "https://chewy.com/blue-buffalo-life-protection"
+  },
+  {
+    "upc": "038100177445",
+    "name": "Purina Pro Plan Adult Sensitive Skin & Stomach Salmon & Rice",
+    "brand": "Purina Pro Plan",
+    "category": "dog_dry",
+    "life_stage": "adult",
+    "weight_lbs": 30,
+    "price": 62.98,
+    "autoship_price": 56.68,
+    "image_url": "https://placehold.co/200x200",
+    "affiliate_url": "https://chewy.com/purina-pro-plan-sensitive"
+  },
+  {
+    "upc": "030111430182",
+    "name": "Royal Canin Feline Health Nutrition Indoor Adult Dry Cat Food",
+    "brand": "Royal Canin",
+    "category": "cat_dry",
+    "life_stage": "adult",
+    "weight_lbs": 7,
+    "price": 38.99,
+    "autoship_price": 37.04,
+    "image_url": "https://placehold.co/200x200",
+    "affiliate_url": "https://chewy.com/royal-canin-indoor-adult"
+  },
+  {
+    "upc": "052742019253",
+    "name": "Hill's Science Diet Adult Chicken & Barley Recipe Dry Dog Food",
+    "brand": "Hill's Science Diet",
+    "category": "dog_dry",
+    "life_stage": "adult",
+    "weight_lbs": 35,
+    "price": 64.99,
+    "autoship_price": 58.49,
+    "image_url": "https://placehold.co/200x200",
+    "affiliate_url": "https://chewy.com/hills-science-diet-adult"
+  },
+  {
+    "upc": "076344893202",
+    "name": "Wellness Complete Health Adult Deboned Chicken & Brown Rice Dry Cat Food",
+    "brand": "Wellness",
+    "category": "cat_dry",
+    "life_stage": "adult",
+    "weight_lbs": 12,
+    "price": 44.99,
+    "autoship_price": 42.74,
+    "image_url": "https://placehold.co/200x200",
+    "affiliate_url": "https://chewy.com/wellness-complete-health-cat"
+  },
+  {
+    "upc": "074198612635",
+    "name": "Taste of the Wild High Prairie Grain-Free Roasted Bison & Venison Dry Dog Food",
+    "brand": "Taste of the Wild",
+    "category": "dog_dry",
+    "life_stage": "adult",
+    "weight_lbs": 28,
+    "price": 52.99,
+    "autoship_price": 47.69,
+    "image_url": "https://placehold.co/200x200",
+    "affiliate_url": "https://chewy.com/taste-of-the-wild-high-prairie"
+  },
+  {
+    "upc": "022808260455",
+    "name": "Merrick Grain-Free Real Beef & Sweet Potato Wet Dog Food",
+    "brand": "Merrick",
+    "category": "dog_wet",
+    "life_stage": "adult",
+    "weight_lbs": 9.6,
+    "price": 39.84,
+    "autoship_price": 35.86,
+    "image_url": "https://placehold.co/200x200",
+    "affiliate_url": "https://chewy.com/merrick-grain-free-beef"
+  },
+  {
+    "upc": "064992282509",
+    "name": "Orijen Original Grain-Free Dry Dog Food",
+    "brand": "Orijen",
+    "category": "dog_dry",
+    "life_stage": "all_life_stages",
+    "weight_lbs": 25,
+    "price": 89.99,
+    "autoship_price": 80.99,
+    "image_url": "https://placehold.co/200x200",
+    "affiliate_url": "https://chewy.com/orijen-original"
+  },
+  {
+    "upc": "064992500108",
+    "name": "Acana Wild Atlantic Grain-Free Dry Cat Food",
+    "brand": "Acana",
+    "category": "cat_dry",
+    "life_stage": "all_life_stages",
+    "weight_lbs": 10,
+    "price": 49.99,
+    "autoship_price": 47.49,
+    "image_url": "https://placehold.co/200x200",
+    "affiliate_url": "https://chewy.com/acana-wild-atlantic-cat"
+  },
+  {
+    "upc": "019014081356",
+    "name": "Iams Proactive Health Adult Pate with Chicken Wet Cat Food",
+    "brand": "Iams",
+    "category": "cat_wet",
+    "life_stage": "adult",
+    "weight_lbs": 6,
+    "price": 22.99,
+    "autoship_price": null,
+    "image_url": "https://placehold.co/200x200",
+    "affiliate_url": "https://chewy.com/iams-proactive-health-cat"
+  }
+]
