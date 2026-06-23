@@ -6,142 +6,120 @@
 <title>BestBowl</title>
 <style>
   :root{
-    --brand:#1D9E75; --brand-bg:#f5fbf8;
+    --brand:#1D9E75; --brand-dark:#157a5a; --brand-bg:#f5fbf8;
     --amber:#BA7517;
     --ink:#1c1c1a; --muted:#8a8a85; --muted2:#b3b3ad;
-    --line:#ececea; --field:#f2f2f0;
+    --line:#ececea; --field:#f2f2f0; --page:#f7f7f5;
     --dog-bg:#E8F8F2; --cat-bg:#FEF3E2;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html{scroll-behavior:smooth;}
   body{
-    margin:0;background:#fff;color:var(--ink);
-    font-family:system-ui,-apple-system,sans-serif;
-    font-size:14px;line-height:1.4;
+    margin:0;background:var(--page);color:var(--ink);
+    font-family:system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.4;
   }
-  .app{max-width:640px;margin:0 auto;background:#fff;min-height:100vh;position:relative;}
-  .small{font-size:12px;}
+  .app{max-width:640px;margin:0 auto;background:var(--page);min-height:100vh;position:relative;}
 
   /* ---------- header ---------- */
-  header{
-    position:sticky;top:0;z-index:20;background:#fff;
-    box-shadow:0 2px 8px rgba(0,0,0,.05);
-    padding:10px 16px 12px;
-  }
+  header{position:sticky;top:0;z-index:20;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.05);padding:10px 16px 12px;}
   .bar1{display:flex;align-items:center;justify-content:space-between;height:36px;}
   .logo{font-size:18px;font-weight:700;letter-spacing:-.3px;}
   .logo .b{color:var(--ink);} .logo .o{color:var(--brand);}
-  .icon-btn{
-    width:40px;height:40px;border:none;background:transparent;cursor:pointer;
-    display:flex;align-items:center;justify-content:center;color:var(--ink);margin-right:-8px;
-  }
-  .search{
-    display:flex;align-items:center;gap:8px;background:var(--field);
-    border-radius:12px;padding:0 12px;height:44px;margin-top:10px;
-  }
+  .icon-btn{width:40px;height:40px;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--ink);margin-right:-8px;}
+  .search{display:flex;align-items:center;gap:8px;background:var(--field);border-radius:12px;padding:0 12px;height:44px;margin-top:10px;}
   .search svg{flex:0 0 auto;color:var(--muted);}
-  .search input{
-    border:none;background:transparent;outline:none;width:100%;height:100%;
-    font-size:14px;color:var(--ink);font-family:inherit;
-  }
-  .pills{
-    display:flex;gap:8px;margin-top:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;
-    scrollbar-width:none;
-  }
+  .search input{border:none;background:transparent;outline:none;width:100%;height:100%;font-size:14px;color:var(--ink);font-family:inherit;}
+  .pills{display:flex;gap:8px;margin-top:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
   .pills::-webkit-scrollbar{display:none;}
-  .pill{
-    flex:0 0 auto;border:1px solid var(--line);background:#fff;color:var(--ink);
-    border-radius:999px;padding:7px 14px;font-size:12px;cursor:pointer;white-space:nowrap;
-    min-height:32px;
-  }
+  .pill{flex:0 0 auto;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;padding:7px 14px;font-size:12px;cursor:pointer;white-space:nowrap;min-height:32px;}
   .pill.active{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600;}
 
-  /* ---------- list toolbar ---------- */
-  .toolbar{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 6px;}
+  /* ---------- toolbar ---------- */
+  .toolbar{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 4px;}
   .count{font-size:12px;color:var(--muted);}
   .sort{position:relative;}
-  .sort select{
-    -webkit-appearance:none;appearance:none;border:1px solid var(--line);background:#fff;
-    color:var(--ink);font-size:12px;font-family:inherit;border-radius:8px;
-    padding:7px 26px 7px 10px;cursor:pointer;min-height:32px;
-  }
+  .sort select{-webkit-appearance:none;appearance:none;border:1px solid var(--line);background:#fff;color:var(--ink);font-size:12px;font-family:inherit;border-radius:8px;padding:7px 26px 7px 10px;cursor:pointer;min-height:32px;}
   .sort svg{position:absolute;right:8px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--muted);}
 
-  /* ---------- cards ---------- */
-  .list{padding:6px 12px 40px;}
-  .card{
-    background:#fff;border:1px solid var(--line);border-radius:14px;
-    box-shadow:0 1px 3px rgba(0,0,0,.05);margin-top:10px;overflow:hidden;
-  }
-  .row{
-    display:flex;align-items:center;gap:12px;padding:12px;cursor:pointer;min-height:44px;
-  }
-  .thumb{
-    flex:0 0 auto;width:40px;height:40px;border-radius:10px;
-    display:flex;align-items:center;justify-content:center;
-  }
+  .section-label{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;padding:14px 16px 2px;}
+
+  .list{padding:4px 12px 40px;}
+
+  /* ---------- top grid (2x2) ---------- */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:6px 4px 0;}
+  .tile{background:#fff;border-radius:16px;box-shadow:0 1px 4px rgba(0,0,0,.06);overflow:hidden;cursor:pointer;display:flex;flex-direction:column;transition:transform .12s ease;}
+  .tile:active{transform:scale(.98);}
+  .tile-img{position:relative;height:96px;display:flex;align-items:center;justify-content:center;}
+  .tile-img.dog{background:var(--dog-bg);color:var(--brand);}
+  .tile-img.cat{background:var(--cat-bg);color:var(--amber);}
+  .tile-score{position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.15);}
+  .tile-body{padding:10px 12px 12px;display:flex;flex-direction:column;gap:4px;flex:1;}
+  .tile-name{font-size:14px;font-weight:600;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:35px;}
+  .tile-brand{font-size:12px;color:var(--muted);}
+  .tile-foot{margin-top:auto;display:flex;align-items:baseline;justify-content:space-between;gap:6px;padding-top:4px;}
+  .tile-price{font-size:15px;font-weight:800;}
+  .tile-at{font-size:11px;color:var(--brand-dark);font-weight:600;text-transform:capitalize;}
+
+  /* ---------- list cards (the rest) ---------- */
+  .card{background:#fff;border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.05);margin-top:10px;display:flex;align-items:center;gap:12px;padding:12px;cursor:pointer;min-height:64px;transition:transform .12s ease;}
+  .card:active{transform:scale(.99);}
+  .thumb{flex:0 0 auto;width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;}
   .thumb.dog{background:var(--dog-bg);color:var(--brand);}
   .thumb.cat{background:var(--cat-bg);color:var(--amber);}
-  .pname{
-    flex:1;min-width:0;font-size:14px;font-weight:500;
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  }
-  .bestprice{flex:0 0 auto;font-size:14px;font-weight:700;}
-  .score{
-    flex:0 0 auto;width:34px;height:34px;border-radius:50%;
-    display:flex;align-items:center;justify-content:center;
-    font-size:13px;font-weight:700;color:#fff;
-  }
-  .chev{flex:0 0 auto;color:var(--muted);transition:transform .3s ease,color .3s ease;display:flex;}
-  .card.open .chev{transform:rotate(180deg);color:var(--brand);}
-
-  .expand{max-height:0;overflow:hidden;transition:max-height .32s ease;}
-  .card.open .expand{max-height:640px;}
-  .divider{height:1px;background:var(--line);margin:0 12px;}
-
-  .ipills{display:flex;flex-wrap:wrap;gap:6px;padding:12px 12px 4px;}
-  .ipill{font-size:11px;color:var(--muted);background:var(--field);border-radius:999px;padding:3px 9px;}
-
-  .stores{padding:4px 8px 8px;}
-  .store{
-    display:flex;align-items:center;gap:10px;padding:10px 8px;min-height:44px;cursor:pointer;
-    border-radius:8px;
-  }
-  .store + .store{border-top:1px solid var(--line);}
-  .store.best{background:var(--brand-bg);}
-  .sname{flex:0 0 76px;font-size:14px;font-weight:600;text-transform:capitalize;display:flex;flex-direction:column;gap:2px;}
-  .badge{display:inline-block;font-size:10px;font-weight:700;color:var(--brand);letter-spacing:.3px;}
-  .pcol{flex:1;min-width:0;}
-  .pmain{font-size:14px;font-weight:700;}
-  .psub{font-size:11px;color:var(--muted);margin-top:1px;}
-  .strike{text-decoration:line-through;color:var(--muted2);}
-  .vscore{flex:0 0 auto;font-size:14px;font-weight:700;color:var(--muted);min-width:34px;text-align:right;}
-  .vscore.best{color:var(--brand);}
-  .ext{flex:0 0 auto;color:var(--muted);display:flex;width:24px;justify-content:flex-end;}
-  .savings{padding:8px 14px 14px;font-size:12px;color:var(--brand);font-weight:600;}
+  .c-mid{flex:1;min-width:0;}
+  .c-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .c-sub{font-size:12px;color:var(--muted);margin-top:2px;}
+  .c-price{font-size:14px;font-weight:800;}
+  .c-right{display:flex;align-items:center;gap:10px;flex:0 0 auto;}
+  .score{flex:0 0 auto;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;}
 
   /* ---------- states ---------- */
   .state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:64px 20px;text-align:center;}
   .spinner{width:34px;height:34px;border-radius:50%;border:3px solid var(--field);border-top-color:var(--brand);animation:spin .8s linear infinite;margin-bottom:14px;}
   @keyframes spin{to{transform:rotate(360deg);}}
-  .state .t1{font-size:14px;color:var(--muted);}
-  .state .t2{font-size:12px;color:var(--muted2);margin-top:4px;}
-  .state .ei{color:var(--muted2);margin-bottom:12px;}
+  .state .t1{font-size:14px;color:var(--muted);} .state .t2{font-size:12px;color:var(--muted2);margin-top:4px;} .state .ei{color:var(--muted2);margin-bottom:12px;}
 
   /* ---------- drawer ---------- */
   .scrim{position:fixed;inset:0;background:rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .25s ease;z-index:30;}
   .scrim.open{opacity:1;pointer-events:auto;}
-  .drawer{
-    position:fixed;top:0;right:0;height:100%;width:264px;max-width:80vw;background:#fff;z-index:40;
-    transform:translateX(100%);transition:transform .25s ease;box-shadow:-4px 0 20px rgba(0,0,0,.12);
-    display:flex;flex-direction:column;padding:14px 8px;
-  }
+  .drawer{position:fixed;top:0;right:0;height:100%;width:264px;max-width:80vw;background:#fff;z-index:40;transform:translateX(100%);transition:transform .25s ease;box-shadow:-4px 0 20px rgba(0,0,0,.12);display:flex;flex-direction:column;padding:14px 8px;}
   .drawer.open{transform:translateX(0);}
   .drawer-top{display:flex;justify-content:flex-end;}
-  .drawer a{
-    display:block;padding:14px 14px;font-size:14px;color:var(--ink);text-decoration:none;border-radius:10px;
-  }
+  .drawer a{display:block;padding:14px;font-size:14px;color:var(--ink);text-decoration:none;border-radius:10px;}
   .drawer a:active{background:var(--field);}
+
+  /* ---------- detail bottom sheet ---------- */
+  .sheet-scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .25s ease;z-index:50;}
+  .sheet-scrim.open{opacity:1;pointer-events:auto;}
+  .sheet{position:fixed;left:50%;bottom:0;transform:translate(-50%,100%);width:100%;max-width:640px;background:#fff;z-index:60;border-radius:22px 22px 0 0;box-shadow:0 -6px 28px rgba(0,0,0,.18);transition:transform .3s cubic-bezier(.2,.8,.2,1);max-height:88vh;display:flex;flex-direction:column;}
+  .sheet.open{transform:translate(-50%,0);}
+  .handle{width:40px;height:4px;border-radius:99px;background:#dcdcd8;margin:10px auto 4px;flex:0 0 auto;}
+  .sheet-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px 16px 24px;}
+  .sheet-head{display:flex;align-items:center;gap:12px;padding:8px 0 12px;}
+  .sheet-img{flex:0 0 auto;width:56px;height:56px;border-radius:14px;display:flex;align-items:center;justify-content:center;}
+  .sheet-img.dog{background:var(--dog-bg);color:var(--brand);} .sheet-img.cat{background:var(--cat-bg);color:var(--amber);}
+  .sheet-h-mid{flex:1;min-width:0;}
+  .sheet-name{font-size:14px;font-weight:700;line-height:1.3;}
+  .sheet-brand{font-size:12px;color:var(--muted);margin-top:2px;}
+  .sheet-score{flex:0 0 auto;width:40px;height:40px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:14px;}
+  .sheet-score span{font-size:8px;opacity:.9;font-weight:600;}
+  .ipills{display:flex;flex-wrap:wrap;gap:6px;padding:2px 0 14px;}
+  .ipill{font-size:11px;color:var(--muted);background:var(--field);border-radius:999px;padding:4px 10px;}
+  .cmp-label{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;}
+  .opt{display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px;cursor:pointer;min-height:60px;transition:transform .1s ease;}
+  .opt:active{transform:scale(.99);}
+  .opt.best{border-color:var(--brand);background:var(--brand-bg);}
+  .opt-mid{flex:1;min-width:0;}
+  .opt-store{font-size:14px;font-weight:700;text-transform:capitalize;display:flex;align-items:center;gap:6px;}
+  .opt-tag{font-size:9px;font-weight:800;color:#fff;background:var(--brand);padding:2px 6px;border-radius:99px;letter-spacing:.3px;}
+  .opt-sub{font-size:11px;color:var(--muted);margin-top:3px;}
+  .strike{text-decoration:line-through;color:var(--muted2);}
+  .opt-price{text-align:right;flex:0 0 auto;}
+  .opt-main{font-size:15px;font-weight:800;}
+  .opt-val{font-size:11px;color:var(--muted);margin-top:2px;}
+  .opt-val.best{color:var(--brand);font-weight:700;}
+  .opt-buy{flex:0 0 auto;width:34px;height:34px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;}
+  .savings{text-align:center;font-size:12px;color:var(--brand-dark);font-weight:700;background:var(--brand-bg);border-radius:12px;padding:10px;margin-top:2px;}
 </style>
 </head>
 <body>
@@ -179,9 +157,10 @@
     </div>
   </div>
 
-  <div class="list" id="list"></div>
+  <div id="list"></div>
 </div>
 
+<!-- drawer -->
 <div class="scrim" id="scrim"></div>
 <nav class="drawer" id="drawer" aria-hidden="true">
   <div class="drawer-top">
@@ -189,11 +168,15 @@
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6l-12 12M6 6l12 12"/></svg>
     </button>
   </div>
-  <a href="#">Home</a>
-  <a href="#">About</a>
-  <a href="#">How it works</a>
-  <a href="#">Contact</a>
+  <a href="#">Home</a><a href="#">About</a><a href="#">How it works</a><a href="#">Contact</a>
 </nav>
+
+<!-- detail sheet -->
+<div class="sheet-scrim" id="sheetScrim"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true">
+  <div class="handle" id="sheetHandle"></div>
+  <div class="sheet-scroll" id="sheetBody"></div>
+</div>
 
 <script>
   const SUPABASE_URL = "https://skkilfwlehvgxlmrbfsa.supabase.co";
@@ -201,59 +184,39 @@
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNra2lsZndsZWh2Z3hsbXJiZnNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyMjUzODcsImV4cCI6MjA5NzgwMTM4N30.cjTf5yhOqTCBNpzWIUIOCt5iAUMdxkDX6Sy4bzd4yEo";
 
   const $ = (s) => document.querySelector(s);
-  const listEl = $("#list");
-  const countEl = $("#count");
-  const inputEl = $("#q");
+  const listEl = $("#list"), countEl = $("#count"), inputEl = $("#q");
 
-  // filter state
-  let petType = "";   // "", "dog", "cat"
-  let foodType = "";   // "", "dry", "wet", "treat"
-  let sort = "value";
-  let seq = 0;
-  let debounce = null;
+  let petType = "", foodType = "", sort = "value", seq = 0, debounce = null;
+  let current = []; // current filtered results, for sheet lookup
 
-  // ---------- icons ----------
-  const DOG_ICON = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11h18"/><path d="M5 11l1.4 7a2 2 0 0 0 2 1.6h7.2a2 2 0 0 0 2 -1.6L19 11"/><path d="M8 11a4 4 0 0 1 8 0"/></svg>';
-  const CAT_ICON = '<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4l3.6 3.2A8.5 8.5 0 0 1 12 6c1.6 0 3.1 .4 4.4 1.2L20 4v8.5a8 8 0 0 1 -16 0z"/><circle cx="9.3" cy="12" r="1" fill="#fff"/><circle cx="14.7" cy="12" r="1" fill="#fff"/></svg>';
-  const EXT_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6h-6a2 2 0 0 0 -2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-6"/><path d="M11 13l9 -9"/><path d="M15 4h5v5"/></svg>';
-  const CHEV = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6"/></svg>';
-  const BOWL_BIG = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11h18"/><path d="M5 11l1.4 7a2 2 0 0 0 2 1.6h7.2a2 2 0 0 0 2 -1.6L19 11"/><path d="M8 11a4 4 0 0 1 8 0"/></svg>';
+  // icons
+  const DOG = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11h18"/><path d="M5 11l1.4 7a2 2 0 0 0 2 1.6h7.2a2 2 0 0 0 2 -1.6L19 11"/><path d="M8 11a4 4 0 0 1 8 0"/></svg>';
+  const CAT = '<svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4l3.6 3.2A8.5 8.5 0 0 1 12 6c1.6 0 3.1 .4 4.4 1.2L20 4v8.5a8 8 0 0 1 -16 0z"/><circle cx="9.3" cy="12" r="1" fill="#fff"/><circle cx="14.7" cy="12" r="1" fill="#fff"/></svg>';
+  const EXT = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h-3a2 2 0 0 0 -2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-3"/><path d="M11 13l9 -9"/><path d="M15 4h5v5"/></svg>';
+  const BOWL = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11h18"/><path d="M5 11l1.4 7a2 2 0 0 0 2 1.6h7.2a2 2 0 0 0 2 -1.6L19 11"/><path d="M8 11a4 4 0 0 1 8 0"/></svg>';
 
   const money = (n) => (n == null ? null : "$" + Number(n).toFixed(2));
   const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
-  const esc = (s) =>
-    String(s ?? "").replace(/[&<>"']/g, (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
-    );
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const petOf = (p) => (p.pet_type === "cat" ? "cat" : "dog");
+  const iconOf = (p) => (petOf(p) === "cat" ? CAT : DOG);
+  const scoreColor = (v) => (v >= 8 ? "var(--brand)" : v >= 7 ? "var(--amber)" : "#ccc");
 
-  function scoreColor(v) {
-    if (v >= 8) return "var(--brand)";
-    if (v >= 7) return "var(--amber)";
-    return "#ccc";
-  }
-
-  // ---------- pills ----------
+  // ---------- controls ----------
   $("#pills").addEventListener("click", (e) => {
-    const pill = e.target.closest(".pill");
-    if (!pill) return;
+    const pill = e.target.closest(".pill"); if (!pill) return;
     document.querySelectorAll("#pills .pill").forEach((p) => p.classList.toggle("active", p === pill));
-    const kind = pill.dataset.kind;
-    petType = kind === "pet" ? pill.dataset.val : "";
-    foodType = kind === "food" ? pill.dataset.val : "";
+    petType = pill.dataset.kind === "pet" ? pill.dataset.val : "";
+    foodType = pill.dataset.kind === "food" ? pill.dataset.val : "";
     load();
   });
-
-  // ---------- search / sort ----------
-  inputEl.addEventListener("input", () => {
-    clearTimeout(debounce);
-    debounce = setTimeout(load, 300);
-  });
+  inputEl.addEventListener("input", () => { clearTimeout(debounce); debounce = setTimeout(load, 300); });
   $("#sort").addEventListener("change", (e) => { sort = e.target.value; load(); });
 
   // ---------- drawer ----------
   const drawer = $("#drawer"), scrim = $("#scrim");
-  const openMenu = () => { drawer.classList.add("open"); scrim.classList.add("open"); drawer.setAttribute("aria-hidden", "false"); };
-  const closeMenu = () => { drawer.classList.remove("open"); scrim.classList.remove("open"); drawer.setAttribute("aria-hidden", "true"); };
+  const openMenu = () => { drawer.classList.add("open"); scrim.classList.add("open"); };
+  const closeMenu = () => { drawer.classList.remove("open"); scrim.classList.remove("open"); };
   $("#menuBtn").addEventListener("click", openMenu);
   $("#closeBtn").addEventListener("click", closeMenu);
   scrim.addEventListener("click", closeMenu);
@@ -261,24 +224,19 @@
 
   // ---------- fetch ----------
   async function load() {
-    const q = inputEl.value.trim();
-    const mySeq = ++seq;
-
-    listEl.innerHTML =
-      '<div class="state"><div class="spinner"></div><div class="t1">Finding best prices...</div></div>';
+    const q = inputEl.value.trim(); const mySeq = ++seq;
+    listEl.innerHTML = '<div class="state"><div class="spinner"></div><div class="t1">Finding best prices...</div></div>';
     countEl.textContent = "";
-
     let url = `${SUPABASE_URL}/functions/v1/search?q=${encodeURIComponent(q)}&sort=${sort}`;
     if (petType) url += `&pet_type=${petType}`;
-
     try {
       const res = await fetch(url, { headers: { apikey: ANON_KEY, Authorization: "Bearer " + ANON_KEY } });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const data = await res.json();
-      if (mySeq !== seq) return; // stale response
+      if (mySeq !== seq) return;
       let results = (data && data.results) || [];
-      // Dry / Wet / Treats are filtered client-side on category suffix.
       if (foodType) results = results.filter((r) => r.category && r.category.endsWith("_" + foodType));
+      current = results;
       render(results);
     } catch (err) {
       if (mySeq !== seq) return;
@@ -289,99 +247,128 @@
   function render(results) {
     if (!results.length) {
       countEl.textContent = "";
-      listEl.innerHTML =
-        `<div class="state"><div class="ei">${BOWL_BIG}</div><div class="t1">No products found</div><div class="t2">Try a different search</div></div>`;
+      listEl.innerHTML = `<div class="state"><div class="ei">${BOWL}</div><div class="t1">No products found</div><div class="t2">Try a different search</div></div>`;
       return;
     }
     countEl.textContent = `${results.length} product${results.length === 1 ? "" : "s"}`;
-    listEl.innerHTML = results.map(card).join("");
+
+    let html = "";
+    if (results.length > 4) {
+      const top = results.slice(0, 4), rest = results.slice(4);
+      html += `<div class="section-label">Top picks</div>`;
+      html += `<div class="grid">${top.map(tile).join("")}</div>`;
+      html += `<div class="section-label">More products</div>`;
+      html += `<div class="list">${rest.map(listCard).join("")}</div>`;
+    } else {
+      html += `<div class="grid" style="padding-bottom:24px">${results.map(tile).join("")}</div>`;
+    }
+    listEl.innerHTML = html;
   }
 
-  function card(p) {
-    const score = p.quality_score != null ? Number(p.quality_score) : 0;
-    const pet = p.pet_type === "cat" ? "cat" : "dog";
-    const icon = pet === "cat" ? CAT_ICON : DOG_ICON;
-    const sb = p.score_breakdown || {};
+  function tile(p) {
+    const score = Number(p.quality_score || 0), pet = petOf(p);
+    const at = p.best_price_store ? `<span class="tile-at">at ${esc(cap(p.best_price_store))}</span>` : "";
+    return `
+      <div class="tile" data-upc="${esc(p.upc)}">
+        <div class="tile-img ${pet}">
+          ${iconOf(p)}
+          <div class="tile-score" style="background:${scoreColor(score)}">${score.toFixed(1)}</div>
+        </div>
+        <div class="tile-body">
+          <div class="tile-name">${esc(p.name)}</div>
+          <div class="tile-foot">
+            <span class="tile-price">${money(p.best_price) || "—"}</span>
+            ${at}
+          </div>
+        </div>
+      </div>`;
+  }
 
+  function listCard(p) {
+    const score = Number(p.quality_score || 0), pet = petOf(p);
+    const sub = `${p.price_count} store${p.price_count === 1 ? "" : "s"}${p.best_price_store ? " · best at " + esc(cap(p.best_price_store)) : ""}`;
+    return `
+      <div class="card" data-upc="${esc(p.upc)}">
+        <div class="thumb ${pet}">${iconOf(p)}</div>
+        <div class="c-mid">
+          <div class="c-name">${esc(p.name)}</div>
+          <div class="c-sub">${sub}</div>
+        </div>
+        <div class="c-right">
+          <span class="c-price">${money(p.best_price) || "—"}</span>
+          <span class="score" style="background:${scoreColor(score)}">${score.toFixed(1)}</span>
+        </div>
+      </div>`;
+  }
+
+  // ---------- detail sheet ----------
+  const sheet = $("#sheet"), sheetScrim = $("#sheetScrim"), sheetBody = $("#sheetBody");
+  function openSheet(p) {
+    const score = Number(p.quality_score || 0), pet = petOf(p), sb = p.score_breakdown || {};
     const ipills = [];
     if (sb.first_ingredient) ipills.push(`<span class="ipill">${esc(sb.first_ingredient)}</span>`);
     if (sb.protein_percent != null) ipills.push(`<span class="ipill">${Number(sb.protein_percent)}% protein</span>`);
     if (sb.recall_count != null) ipills.push(`<span class="ipill">${Number(sb.recall_count)} recall${Number(sb.recall_count) === 1 ? "" : "s"}</span>`);
+    if (sb.data_source) ipills.push(`<span class="ipill">${esc(sb.data_source)} data</span>`);
 
-    // most expensive store (for the savings line)
     let maxStore = null, maxEff = -Infinity;
     (p.prices || []).forEach((s) => { if (Number(s.effective_price) > maxEff) { maxEff = Number(s.effective_price); maxStore = s.store; } });
 
-    const stores = (p.prices || []).map((s) => storeRow(s, p)).join("");
-    const savings =
-      p.savings_vs_most_expensive > 0 && maxStore
-        ? `<div class="savings">Save ${money(p.savings_vs_most_expensive)} vs ${cap(maxStore)}</div>`
-        : "";
+    const opts = (p.prices || []).map((s) => optRow(s, p)).join("");
+    const savings = p.savings_vs_most_expensive > 0 && maxStore
+      ? `<div class="savings">💰 Save ${money(p.savings_vs_most_expensive)} by buying at ${esc(cap(p.best_value_store || p.best_price_store))} vs ${esc(cap(maxStore))}</div>` : "";
 
-    return `
-      <div class="card" data-upc="${esc(p.upc)}">
-        <div class="row">
-          <div class="thumb ${pet}">${icon}</div>
-          <div class="pname">${esc(p.name)}</div>
-          <div class="bestprice">${money(p.best_price) || "—"}</div>
-          <div class="score" style="background:${scoreColor(score)}">${score.toFixed(1)}</div>
-          <div class="chev">${CHEV}</div>
+    sheetBody.innerHTML = `
+      <div class="sheet-head">
+        <div class="sheet-img ${pet}">${iconOf(p)}</div>
+        <div class="sheet-h-mid">
+          <div class="sheet-name">${esc(p.name)}</div>
+          ${p.brand ? `<div class="sheet-brand">${esc(p.brand)}</div>` : ""}
         </div>
-        <div class="expand">
-          <div class="divider"></div>
-          ${ipills.length ? `<div class="ipills">${ipills.join("")}</div>` : ""}
-          <div class="stores">${stores}</div>
-          ${savings}
-        </div>
-      </div>`;
+        <div class="sheet-score" style="background:${scoreColor(score)}">${score.toFixed(1)}<span>/10</span></div>
+      </div>
+      ${ipills.length ? `<div class="ipills">${ipills.join("")}</div>` : ""}
+      <div class="cmp-label">Compare ${(p.prices || []).length} store${(p.prices || []).length === 1 ? "" : "s"}</div>
+      ${opts}
+      ${savings}`;
+    sheet.classList.add("open"); sheetScrim.classList.add("open");
   }
+  function closeSheet() { sheet.classList.remove("open"); sheetScrim.classList.remove("open"); }
 
-  function storeRow(s, p) {
+  function optRow(s, p) {
     const isBest = s.store === p.best_value_store;
-
     let sub = "";
-    if (s.autoship_price != null) {
-      sub = `<div class="psub">autoship ${money(s.autoship_price)} <span class="strike">${money(s.price)}</span></div>`;
-    } else if (s.subscribe_save_price != null) {
-      sub = `<div class="psub">sub &amp; save ${money(s.subscribe_save_price)} <span class="strike">${money(s.price)}</span></div>`;
-    }
-
+    if (s.autoship_price != null) sub = `<div class="opt-sub">autoship ${money(s.autoship_price)} <span class="strike">${money(s.price)}</span></div>`;
+    else if (s.subscribe_save_price != null) sub = `<div class="opt-sub">sub &amp; save ${money(s.subscribe_save_price)} <span class="strike">${money(s.price)}</span></div>`;
+    const main = money(s.autoship_price != null ? s.autoship_price : s.subscribe_save_price != null ? s.subscribe_save_price : s.price);
     const v = s.value_score != null ? Number(s.value_score).toFixed(1) : "–";
     const url = s.affiliate_url ? esc(s.affiliate_url) : "";
-
     return `
-      <div class="store ${isBest ? "best" : ""}" ${url ? `data-url="${url}"` : ""} role="link" tabindex="0">
-        <div class="sname">${esc(s.store)}${isBest ? '<span class="badge">BEST</span>' : ""}</div>
-        <div class="pcol">
-          <div class="pmain">${money(s.price) || "—"}</div>
-          ${sub}
+      <div class="opt ${isBest ? "best" : ""}" ${url ? `data-url="${url}"` : ""} role="link" tabindex="0">
+        <div class="opt-mid">
+          <div class="opt-store">${esc(cap(s.store))}${isBest ? '<span class="opt-tag">BEST VALUE</span>' : ""}</div>
+          ${sub || `<div class="opt-sub">value score ${v}</div>`}
         </div>
-        <div class="vscore ${isBest ? "best" : ""}">${v}</div>
-        <div class="ext">${EXT_ICON}</div>
+        <div class="opt-price">
+          <div class="opt-main">${main || "—"}</div>
+          <div class="opt-val ${isBest ? "best" : ""}">value ${v}</div>
+        </div>
+        <div class="opt-buy">${EXT}</div>
       </div>`;
   }
 
-  // ---------- delegated interactions ----------
+  // ---------- interactions ----------
   listEl.addEventListener("click", (e) => {
-    const store = e.target.closest(".store");
-    if (store) {
-      if (store.dataset.url) window.open(store.dataset.url, "_blank", "noopener");
-      return;
-    }
-    const row = e.target.closest(".row");
-    if (!row) return;
-    const card = row.parentElement;
-    const wasOpen = card.classList.contains("open");
-    document.querySelectorAll(".card.open").forEach((c) => c.classList.remove("open")); // one at a time
-    if (!wasOpen) card.classList.add("open");
+    const item = e.target.closest("[data-upc]"); if (!item) return;
+    const p = current.find((r) => r.upc === item.dataset.upc); if (p) openSheet(p);
   });
-  listEl.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter") return;
-    const store = e.target.closest(".store");
-    if (store && store.dataset.url) window.open(store.dataset.url, "_blank", "noopener");
+  sheetBody.addEventListener("click", (e) => {
+    const opt = e.target.closest(".opt"); if (opt && opt.dataset.url) window.open(opt.dataset.url, "_blank", "noopener");
   });
+  sheetScrim.addEventListener("click", closeSheet);
+  $("#sheetHandle").addEventListener("click", closeSheet);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeSheet(); closeMenu(); } });
 
-  // initial load: all products, best value
   load();
 </script>
 </body>
