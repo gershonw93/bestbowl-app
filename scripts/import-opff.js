@@ -1,25 +1,29 @@
 /**
  * import-opff.js
  *
- * Streams the Open Pet Food Facts CSV export, finds the products whose UPC
- * already exists in our `products` table, and stores real ingredient data in
- * the `ingredients` table.
+ * Streams the Open Pet Food Facts CSV export and attaches real ingredient data
+ * to our products by FUZZY-MATCHING ON BRAND NAME (not UPC — our seed catalog
+ * uses synthetic UPCs that don't exist in OFF, so brand matching is what works).
  *
  * The export is a very large (multi-GB) gzipped, TAB-separated CSV. We never
  * load it into memory — we stream it through gunzip → csv-parse and process one
- * record at a time, stopping early once every one of our UPCs is matched.
+ * record at a time, stopping early once every product has a candidate match.
  *
  *   fetch(gz) → zlib.createGunzip() → csv-parse(delimiter:'\t') → for-await
+ *
+ * Matching, per OFF row (only rows tagged as pet/dog/cat food):
+ *   1. fuzzy-match the row's `brands` against our distinct product brands
+ *      (case/spacing-insensitive substring or >=0.5 token Jaccard);
+ *   2. for each of our products with that brand, keep the OFF row with the best
+ *      product_name token overlap (and a pet_type match bonus) as its source of
+ *      ingredient data.
+ * Products whose brand never appears in OFF stay unmatched and fall back to mock
+ * scoring in score-quality.js.
  *
  * Env (see .env.example):
  *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY   - required (writes bypass RLS)
  *   OPFF_FEED_URL                             - optional override of the export URL
- *   OPFF_MAX_ROWS                             - optional safety cap (see below)
- *
- * Note on size limits: if the environment cannot process the whole file, set
- * OPFF_MAX_ROWS (e.g. 100000) to scan only the first N rows and log that a
- * partial scan happened. By default there is no cap, but we always stop early
- * as soon as all of our products are matched.
+ *   OPFF_MAX_ROWS                             - optional safety cap (scan first N rows)
  *
  * Note on columns: the OFF CSV flattens nutriments into columns
  * (`proteins_100g`, `fat_100g`, `fiber_100g`) rather than a nested
@@ -56,8 +60,38 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 
 const PET_FOOD_TAGS = ['en:pet-foods', 'en:dog-foods', 'en:cat-foods'];
 
-const includesAny = (haystack, needles) =>
-  needles.some((n) => haystack.includes(n));
+// Words to ignore when scoring product-name overlap.
+const STOP = new Set([
+  'grain', 'free', 'adult', 'puppy', 'kitten', 'senior', 'dry', 'wet', 'food',
+  'formula', 'recipe', 'with', 'and', 'the', 'for', 'dog', 'dogs', 'cat', 'cats',
+  'natural', 'health', 'complete', 'nutrition', 'lb', 'lbs', 'oz', 'pet',
+]);
+
+const normalize = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const tokens = (s) => normalize(s).split(' ').filter((t) => t && !STOP.has(t));
+
+function jaccard(a, b) {
+  if (!a.length || !b.length) return 0;
+  const setB = new Set(b);
+  const inter = a.filter((t) => setB.has(t)).length;
+  return inter / (new Set([...a, ...b]).size);
+}
+
+// Fuzzy brand match: substring either way, or >=0.5 token Jaccard, tested
+// against the whole `brands` field and each comma-separated brand within it.
+function brandMatches(rowBrands, ourBrand) {
+  const rb = normalize(rowBrands);
+  const bn = normalize(ourBrand);
+  if (!rb || !bn) return false;
+  if (rb.includes(bn) || bn.includes(rb)) return true;
+  for (const part of String(rowBrands).split(',')) {
+    const p = normalize(part);
+    if (!p) continue;
+    if (p.includes(bn) || bn.includes(p)) return true;
+    if (jaccard(tokens(p), tokens(bn)) >= 0.5) return true;
+  }
+  return jaccard(tokens(rb), tokens(bn)) >= 0.5;
+}
 
 const num = (v) => {
   if (v == null || v === '') return null;
@@ -65,11 +99,9 @@ const num = (v) => {
   return Number.isFinite(n) ? n : null;
 };
 
-/** Parse the first ingredient (text before the first comma), cleaned up. */
 function parseFirstIngredient(text) {
   if (!text) return null;
   const first = text.split(',')[0] || '';
-  // Strip leading percentages / parentheticals / asterisks and trim.
   return first.replace(/\([^)]*\)/g, '').replace(/[*\d%.]+/g, '').trim() || null;
 }
 
@@ -90,15 +122,48 @@ function petTypeFromTags(tags) {
   return null;
 }
 
-async function loadOurUpcs() {
-  const { data, error } = await supabase.from('products').select('upc');
+function petTypeFromCategory(category) {
+  if (!category) return null;
+  if (category.startsWith('dog')) return 'dog';
+  if (category.startsWith('cat')) return 'cat';
+  return null;
+}
+
+async function loadOurProducts() {
+  const { data, error } = await supabase
+    .from('products')
+    .select('upc, name, brand, category');
   if (error) throw error;
-  return new Set(data.map((r) => r.upc));
+  return data;
+}
+
+function buildIngredientRow(upc, row, matchedBrand) {
+  const ingredientsText = row.ingredients_text || null;
+  const tags = row.categories_tags || '';
+  return {
+    upc,
+    ingredients_text: ingredientsText,
+    protein_percent: num(row['proteins_100g']),
+    fat_percent: num(row['fat_100g']),
+    fiber_percent: num(row['fiber_100g']),
+    first_ingredient: parseFirstIngredient(ingredientsText),
+    ...deriveFlags(ingredientsText),
+    raw_data: {
+      matched_by: 'brand',
+      matched_brand: matchedBrand,
+      off_code: row.code || null,
+      product_name: row.product_name || null,
+      brands: row.brands || null,
+      categories_tags: tags,
+      pet_type: petTypeFromTags(tags),
+    },
+    imported_at: new Date().toISOString(),
+  };
 }
 
 async function run() {
-  const ourUpcs = await loadOurUpcs();
-  console.log(`[opff] ${ourUpcs.size} product UPC(s) to match against.`);
+  const products = await loadOurProducts();
+  console.log(`[opff] ${products.length} product(s); matching on BRAND (fuzzy).`);
   if (MAX_ROWS !== Infinity) {
     console.log(`[opff] OPFF_MAX_ROWS set — scanning at most ${MAX_ROWS} rows.`);
   }
@@ -122,7 +187,8 @@ async function run() {
   gunzip.on('error', (e) => parser.destroy(e));
   res.body.pipe(gunzip).pipe(parser);
 
-  const matches = new Map(); // upc -> ingredient row
+  // best candidate OFF row per product upc: { score, row, matchedBrand }
+  const best = new Map();
   let scanned = 0;
   let partial = false;
 
@@ -134,39 +200,38 @@ async function run() {
     }
 
     const tags = row.categories_tags || '';
-    if (!includesAny(tags, PET_FOOD_TAGS)) continue;
+    if (!PET_FOOD_TAGS.some((t) => tags.includes(t))) continue;
 
-    const upc = (row.code || '').trim();
-    if (!upc || !ourUpcs.has(upc) || matches.has(upc)) continue;
+    const rowBrands = row.brands || '';
+    if (!rowBrands) continue;
 
-    const ingredientsText = row.ingredients_text || null;
-    const flags = deriveFlags(ingredientsText);
+    const rowPet = petTypeFromTags(tags);
+    const rowNameTokens = tokens(row.product_name);
 
-    matches.set(upc, {
-      row: {
-        upc,
-        ingredients_text: ingredientsText,
-        protein_percent: num(row['proteins_100g']),
-        fat_percent: num(row['fat_100g']),
-        fiber_percent: num(row['fiber_100g']),
-        first_ingredient: parseFirstIngredient(ingredientsText),
-        ...flags,
-        raw_data: {
-          code: upc,
-          product_name: row.product_name || null,
-          brands: row.brands || null,
-          categories_tags: tags,
-          pet_type: petTypeFromTags(tags),
-        },
-        imported_at: new Date().toISOString(),
-      },
-      pet_type: petTypeFromTags(tags),
-    });
+    for (const product of products) {
+      if (!brandMatches(rowBrands, product.brand)) continue;
 
-    console.log(`[opff] matched ${upc}  ${row.product_name || ''}`);
+      // Avoid cross-species matches when both pet types are known.
+      const ourPet = petTypeFromCategory(product.category);
+      if (rowPet && ourPet && rowPet !== ourPet) continue;
 
-    if (matches.size === ourUpcs.size) {
-      console.log('[opff] all products matched — stopping the stream early.');
+      // Need ingredients to be useful.
+      if (!row.ingredients_text) continue;
+
+      const overlap = rowNameTokens.filter((t) =>
+        tokens(product.name).includes(t)
+      ).length;
+      const score = overlap + (rowPet && ourPet && rowPet === ourPet ? 1 : 0) + 1; // +1 base for brand hit
+
+      const existing = best.get(product.upc);
+      if (!existing || score > existing.score) {
+        best.set(product.upc, { score, row, matchedBrand: product.brand });
+      }
+    }
+
+    // Early stop once every product has at least one candidate.
+    if (best.size === products.length) {
+      console.log('[opff] every product has a brand match — stopping early.');
       parser.destroy();
       break;
     }
@@ -174,29 +239,36 @@ async function run() {
 
   // ---- write results ----
   let upserted = 0;
-  if (matches.size) {
-    const rows = [...matches.values()].map((m) => m.row);
+  const matchedBrands = new Set();
+  if (best.size) {
+    const rows = [...best.entries()].map(([upc, m]) => {
+      matchedBrands.add(m.matchedBrand);
+      console.log(
+        `[opff] ${upc}  ${m.matchedBrand}  ←  "${m.row.product_name || ''}"`
+      );
+      return buildIngredientRow(upc, m.row, m.matchedBrand);
+    });
+
     const { error } = await supabase
       .from('ingredients')
       .upsert(rows, { onConflict: 'upc' });
     if (error) throw error;
     upserted = rows.length;
 
-    // Touch products.updated_at for matched UPCs (real data is now available).
     const now = new Date().toISOString();
-    for (const upc of matches.keys()) {
+    for (const upc of best.keys()) {
       await supabase.from('products').update({ updated_at: now }).eq('upc', upc);
     }
   }
 
   console.log('\n--- Open Pet Food Facts import summary ---');
-  console.log(`Rows scanned:        ${scanned}${partial ? ' (partial — hit OPFF_MAX_ROWS)' : ''}`);
-  console.log(`Matched to products: ${matches.size} / ${ourUpcs.size}`);
+  console.log(`Rows scanned:         ${scanned}${partial ? ' (partial — hit OPFF_MAX_ROWS)' : ''}`);
+  console.log(`Products matched:     ${best.size} / ${products.length} (by brand)`);
+  console.log(`Brands matched:       ${[...matchedBrands].sort().join(', ') || '(none)'}`);
   console.log(`Upserted ingredients: ${upserted}`);
-  if (matches.size < ourUpcs.size) {
+  if (best.size < products.length) {
     console.log(
-      '[note] Unmatched UPCs stay on mock fallback in score-quality.js. ' +
-        'OPFF matches require our product UPCs to be real OFF barcodes.'
+      '[note] Unmatched products fall back to mock scoring in score-quality.js.'
     );
   }
 }
