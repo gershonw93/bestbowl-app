@@ -8,12 +8,15 @@
     "import:walmart": "node scripts/import-walmart.js",
     "import:amazon": "node scripts/import-amazon.js",
     "import:petsmart": "node scripts/import-petsmart.js",
+    "import:opff": "node scripts/import-opff.js",
+    "import:fda": "node scripts/import-fda-recalls.js",
     "import:all": "node scripts/import-all.js",
     "seed:multistore": "node scripts/seed-multistore.js",
     "score:quality": "node scripts/score-quality.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
+    "csv-parse": "^5.5.6",
     "dotenv": "^16.4.5",
     "node-fetch": "^2.7.0",
     "paapi5-nodejs-sdk": "^1.1.0"
