@@ -31,6 +31,14 @@ const json = (body: unknown, status = 200) =>
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+// Pet type derived from the category prefix (dog_dry -> dog, cat_wet -> cat).
+const petTypeOf = (category: string | null): string | null => {
+  if (!category) return null;
+  if (category.startsWith("dog")) return "dog";
+  if (category.startsWith("cat")) return "cat";
+  return null;
+};
+
 interface PriceRow {
   upc: string;
   store: string;
@@ -197,6 +205,8 @@ Deno.serve(async (req) => {
       name: product.name,
       brand: product.brand,
       image_url: product.image_url,
+      category: product.category,
+      pet_type: petTypeOf(product.category),
       quality_score: qualityScore,
       score_breakdown: qs
         ? {
