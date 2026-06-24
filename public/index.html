@@ -63,6 +63,10 @@
   .csub{font-size:12px;color:var(--sec);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .score{flex:0 0 auto;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;}
   .chev{flex:0 0 auto;color:var(--muted);display:flex;}
+  .group{background:#fff;border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.05);overflow:hidden;margin-top:8px;}
+  .group .card{box-shadow:none;border-radius:0;margin-top:0;padding:14px;border-bottom:1px solid #f0f0f0;}
+  .group .card:last-child{border-bottom:none;}
+  .cprice{font-size:12px;font-weight:700;color:var(--brand);margin-top:3px;}
 
   /* states */
   .state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;text-align:center;color:var(--sec);}
@@ -88,14 +92,15 @@
   .menu .iconbtn{color:var(--ink);}
 
   /* ---------- product detail ---------- */
-  .p-hd{background:var(--p);color:#fff;position:sticky;top:0;z-index:20;padding:10px 12px 16px;}
+  .p-hd{background:var(--p);color:#fff;position:sticky;top:0;z-index:20;padding:10px 12px 26px;}
   .p-hd-row{display:flex;align-items:center;justify-content:space-between;}
   .backbtn{display:flex;align-items:center;gap:4px;background:transparent;border:none;color:#fff;font-size:14px;font-weight:600;cursor:pointer;padding:6px 4px;}
-  .p-hero{display:flex;align-items:center;gap:12px;margin-top:14px;}
-  .p-hero .thumb{width:52px;height:52px;border-radius:14px;}
-  .p-hero-mid{flex:1;min-width:0;}
-  .p-hname{font-size:12px;font-weight:700;color:#fff;line-height:1.3;}
-  .p-hbrand{font-size:10px;color:rgba(255,255,255,.65);margin-top:2px;}
+  .p-hero{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;margin-top:18px;}
+  .p-hero .thumb{width:64px;height:64px;border-radius:16px;}
+  .p-hname{font-size:14px;font-weight:700;color:#fff;line-height:1.3;max-width:280px;}
+  .p-hbrand{font-size:12px;color:rgba(255,255,255,.7);}
+  .p-hmeta{display:flex;flex-direction:column;align-items:center;gap:12px;margin-top:6px;}
+  .p-hero .ipills{justify-content:center;}
   .p-hscore{flex:0 0 auto;width:46px;height:46px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:14px;}
   .p-hscore span{font-size:8px;font-weight:600;opacity:.9;}
   .p-body{padding:14px 14px 90px;}
@@ -398,7 +403,7 @@
       return;
     }
     $("#homeCount").textContent = `${results.length} product${results.length === 1 ? "" : "s"}`;
-    $("#homeList").innerHTML = results.map(homeCard).join("");
+    $("#homeList").innerHTML = `<div class="group">${results.map(homeCard).join("")}</div>`;
   }
 
   function homeCard(p) {
@@ -408,7 +413,8 @@
         ${thumb(p)}
         <div class="cmid">
           <div class="cname">${esc(p.name)}</div>
-          <div class="csub">${esc(p.brand || "")} · from ${money(p.best_price)}</div>
+          <div class="csub">${esc(p.brand || "")}</div>
+          <div class="cprice">from ${money(p.best_price)}</div>
         </div>
         <div class="score" style="background:${scoreColor(score)}">${score.toFixed(1)}</div>
         <div class="chev">${CHEV}</div>
@@ -426,11 +432,24 @@
     const score = Number(p.quality_score || 0), sb = p.score_breakdown || {};
     const pet = petOf(p);
 
-    // hero
+    // ingredient pills (shown centered in the header)
+    const aafco = Number(sb.aafco_score || 0) > 0;
+    const rec0 = sb.recall_count != null ? Number(sb.recall_count) : 0;
+    const ipills = [];
+    if (sb.first_ingredient) ipills.push(`<span class="ipill">${esc(sb.first_ingredient)}</span>`);
+    if (sb.protein_percent != null) ipills.push(`<span class="ipill">${Number(sb.protein_percent)}% protein</span>`);
+    if (sb.recall_count != null) ipills.push(`<span class="ipill">${rec0} recall${rec0 === 1 ? "" : "s"}</span>`);
+    ipills.push(`<span class="ipill">AAFCO ${aafco ? "✓" : "✗"}</span>`);
+
+    // hero (centered column)
     $("#pHero").innerHTML = `
       <div class="thumb ${pet}">${pet === "cat" ? CAT : DOG}</div>
-      <div class="p-hero-mid"><div class="p-hname">${esc(p.name)}</div><div class="p-hbrand">${esc(p.brand || "")} · ${esc(cap((p.category || "").split("_")[0]))} · ${esc(cap((p.category || "").split("_")[1] || ""))}</div></div>
-      <div class="p-hscore" style="background:${scoreColor(score)}">${score.toFixed(1)}<span>/10</span></div>`;
+      <div class="p-hname">${esc(p.name)}</div>
+      <div class="p-hbrand">${esc(p.brand || "")} · ${esc(cap((p.category || "").split("_")[0]))} · ${esc(cap((p.category || "").split("_")[1] || ""))}</div>
+      <div class="p-hmeta">
+        <div class="p-hscore" style="background:${scoreColor(score)}">${score.toFixed(1)}<span>/10</span></div>
+        <div class="ipills">${ipills.join("")}</div>
+      </div>`;
     updateHeartIcon();
 
     // score bars
@@ -471,24 +490,16 @@
     }).join("");
     const saveLine = p.savings_vs_most_expensive > 0 && maxStore ? `<div class="save-line">Save ${money(p.savings_vs_most_expensive)} vs ${esc(cap(maxStore))}</div>` : "";
 
-    // ingredient pills
-    const aafco = Number(sb.aafco_score || 0) > 0;
-    const ipills = [];
-    if (sb.first_ingredient) ipills.push(`<span class="ipill">${esc(sb.first_ingredient)}</span>`);
-    if (sb.protein_percent != null) ipills.push(`<span class="ipill">${Number(sb.protein_percent)}% protein</span>`);
-    if (sb.recall_count != null) ipills.push(`<span class="ipill">${rec} recall${rec === 1 ? "" : "s"}</span>`);
-    ipills.push(`<span class="ipill">AAFCO ${aafco ? "✓" : "✗"}</span>`);
-
     $("#pBody").innerHTML = `
       <div class="panel"><div class="panel-t">How it scores</div>${bars}</div>
-      <div class="panel"><div class="panel-t">Prices across ${(p.prices || []).length} stores</div>${opts}${saveLine}</div>
-      <div class="panel"><div class="panel-t">Ingredients</div><div class="ipills">${ipills.join("")}</div></div>`;
+      <div class="panel"><div class="panel-t">Prices across ${(p.prices || []).length} stores</div>${opts}${saveLine}</div>`;
 
     // action bar
     const bestRow = (p.prices || []).find((s) => s.store === p.best_value_store) || (p.prices || [])[0] || {};
     const isSaved = state.saved.some((s) => s.upc === p.upc);
     $("#pAction").innerHTML = `
       <button class="ab-best" id="abBest" ${bestRow.affiliate_url ? `data-url="${esc(bestRow.affiliate_url)}"` : ""}>Best Deal — ${money(effOf(bestRow))}<small>at ${esc(cap(p.best_value_store || ""))}</small></button>
+      <!-- store name shows as the small subtitle line under the price -->
       <button class="ab-sec ${isSaved ? "on" : ""}" id="abSave">${isSaved ? HEARTF : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 12.6l-7.5 7.4l-7.5 -7.4a5 5 0 1 1 7.5 -6.6a5 5 0 1 1 7.5 6.6"/></svg>'}Save</button>
       <button class="ab-sec" id="abAlert"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 5a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6"/><path d="M9 17v1a3 3 0 0 0 6 0v-1"/></svg>Alert</button>`;
   }
