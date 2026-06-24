@@ -1,9 +1,9 @@
 /**
  * api/seed-products.js  — Vercel serverless function
  *
- * Browser-triggerable one-shot seed of real Amazon products into Supabase.
- * Runs the same logic as scripts/seed-real-products.js in SEARCH mode with
- * SEED_LIMIT=20 (first run), so it doesn't depend on hardcoded ASINs.
+ * Browser-triggerable seed of real Amazon products into Supabase. Pulls the
+ * Amazon best-seller dog-food and cat-food categories via Rainforest — only
+ * TWO credits total — and upserts the top products into products + prices.
  *
  * Trigger (e.g. from hoppscotch.io):
  *   POST https://<your-app>.vercel.app/api/seed-products
@@ -11,10 +11,7 @@
  *
  * Required Vercel environment variables:
  *   SEED_SECRET, RAINFOREST_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
- *   (optional: AMAZON_PARTNER_TAG)
- *
- * Note: ~20 calls with a short delay; maxDuration is raised to 60s. If it ever
- * times out, lower the limit by editing the `limit` below.
+ *   (optional: AMAZON_PARTNER_TAG, SEED_LIMIT)
  */
 
 const { seed } = require('../scripts/seed-real-products.js');
@@ -30,9 +27,8 @@ module.exports = async (req, res) => {
   const log = [];
   try {
     const result = await seed({
-      lookup: 'search',   // resolve by name — reliable for a first run
-      limit: 20,          // first-run credit cap
-      delayMs: 800,       // lighter delay to stay within the serverless timeout
+      perCategory: 20,   // top 20 per category
+      delayMs: 800,      // short pause between the 2 category calls
       log: (m) => log.push(m),
     });
     return res.status(200).json({ ok: true, ran_at: new Date().toISOString(), ...result, log });
@@ -41,5 +37,5 @@ module.exports = async (req, res) => {
   }
 };
 
-// Raise the serverless execution limit (~20 lookups * (0.8s + API latency)).
+// Only 2 external calls, but raise the limit to be safe.
 module.exports.config = { maxDuration: 60 };
