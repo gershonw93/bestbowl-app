@@ -68,12 +68,42 @@ function lifeStageOf(title) {
   return 'adult';
 }
 
-async function fetchBestsellers(apiKey, url) {
-  const reqUrl = `https://api.rainforestapi.com/request?api_key=${encodeURIComponent(apiKey)}&type=bestsellers&url=${encodeURIComponent(url)}&amazon_domain=amazon.com`;
+async function fetchBestsellers(apiKey, url, log) {
+  // URLSearchParams guarantees the category `url` (and everything else) is
+  // properly percent-encoded in the query string.
+  const params = new URLSearchParams({
+    api_key: apiKey,
+    type: 'bestsellers',
+    url, // e.g. https://www.amazon.com/Best-Sellers-.../zgbs/pet-supplies/2975359011
+    amazon_domain: 'amazon.com',
+  });
+  const reqUrl = `https://api.rainforestapi.com/request?${params.toString()}`;
+
+  // Log the exact URL being sent, with the API key redacted.
+  const redacted = reqUrl
+    .replace(encodeURIComponent(apiKey), 'REDACTED')
+    .replace(apiKey, 'REDACTED');
+  if (log) log(`[req] GET ${redacted}`);
+
   const res = await fetch(reqUrl);
-  if (!res.ok) throw new Error(`Rainforest HTTP ${res.status}`);
-  const body = await res.json();
-  return body.bestsellers || [];
+  const text = await res.text(); // read body once, as text, so we can log raw errors
+
+  if (!res.ok) {
+    const snippet = text.slice(0, 600);
+    if (log) log(`[err] Rainforest HTTP ${res.status} body: ${snippet}`);
+    throw new Error(`Rainforest HTTP ${res.status}: ${snippet}`);
+  }
+
+  let body;
+  try {
+    body = JSON.parse(text);
+  } catch (_e) {
+    if (log) log(`[err] Rainforest returned non-JSON: ${text.slice(0, 300)}`);
+    throw new Error('Rainforest returned non-JSON response');
+  }
+  const list = body.bestsellers || [];
+  if (log) log(`[res] ${res.status} OK — ${list.length} bestsellers in payload`);
+  return list;
 }
 
 /**
@@ -106,7 +136,7 @@ async function seed(opts = {}) {
     const cat = CATEGORIES[ci];
     let list = [];
     try {
-      list = await fetchBestsellers(cfg.apiKey, cat.url);
+      list = await fetchBestsellers(cfg.apiKey, cat.url, cfg.log);
       creditsUsed += 1;
     } catch (err) {
       errors.push({ category: cat.pet, message: err.message });
