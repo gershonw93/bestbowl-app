@@ -56,8 +56,9 @@
   /* ---------- product cards ---------- */
   .card{background:#fff;border-radius:24px;padding:14px;display:flex;align-items:center;gap:14px;margin-bottom:13px;box-shadow:0 4px 0 rgba(8,80,65,.06);}
   .card:active{transform:translateY(1px);}
-  .thumb{flex:0 0 auto;width:60px;height:60px;border-radius:20px;display:flex;align-items:center;justify-content:center;}
+  .thumb{flex:0 0 auto;width:60px;height:60px;border-radius:20px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;}
   .thumb.dog{background:var(--dogbg);color:var(--green);} .thumb.cat{background:var(--catbg);color:var(--amber);}
+  .thumbimg{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff;border-radius:inherit;}
   .cmid{flex:1;min-width:0;}
   .cname{font-size:15px;font-weight:700;color:var(--ink);line-height:1.25;margin-bottom:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
   .cprice{font-size:13px;color:var(--sec);font-weight:600;}
@@ -348,7 +349,11 @@
   const HEART_O = (st, w) => `<svg width="${w}" height="${w}" viewBox="0 0 24 24" fill="none" stroke="${st}" stroke-width="2"><path d="M12 20s-7-4.3-7-9.3A3.7 3.7 0 0 1 12 8a3.7 3.7 0 0 1 7-2.3C19 15.7 12 20 12 20Z"/></svg>`;
   const HEART_F = (fl, w) => `<svg width="${w}" height="${w}" viewBox="0 0 24 24" fill="${fl}"><path d="M12 20s-7-4.3-7-9.3A3.7 3.7 0 0 1 12 8a3.7 3.7 0 0 1 7-2.3C19 15.7 12 20 12 20Z"/></svg>`;
   const BELL = (st, w) => `<svg width="${w}" height="${w}" viewBox="0 0 24 24" fill="none" stroke="${st}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>`;
-  const thumb = (p) => `<div class="thumb ${petOf(p)}">${petOf(p) === "cat" ? CAT : DOG}</div>`;
+  // Real product photo if we have one (ignore placehold.co placeholder stubs).
+  const photoUrl = (p) => { const u = p.image_url; return u && !/placehold\.co/i.test(u) ? u : null; };
+  // Image overlay that covers the icon; if it fails to load it removes itself, revealing the icon.
+  const thumbImg = (p) => { const u = photoUrl(p); return u ? `<img class="thumbimg" src="${esc(u)}" alt="" loading="lazy" onerror="this.remove()" />` : ""; };
+  const thumb = (p) => `<div class="thumb ${petOf(p)}">${petOf(p) === "cat" ? CAT : DOG}${thumbImg(p)}</div>`;
 
   function index(arr) { arr.forEach((p) => { state.byUpc[p.upc] = p; }); }
 
@@ -432,7 +437,7 @@
 
     $("#pHero").innerHTML = `
       <div class="p-chip">
-        <div class="thumb ${pet}">${BOWLBIG.replace("currentColor", pet === "cat" ? "var(--amber)" : "var(--green)")}</div>
+        <div class="thumb ${pet}">${BOWLBIG.replace("currentColor", pet === "cat" ? "var(--amber)" : "var(--green)")}${thumbImg(p)}</div>
         <div class="p-sticker display" style="background:${c.bg};color:${c.fg}"><span class="n">${s.toFixed(1)}</span><span class="d">/10</span></div>
       </div>
       <div class="p-name display">${esc(p.name)}</div>
