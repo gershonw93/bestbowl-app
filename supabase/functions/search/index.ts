@@ -66,6 +66,7 @@ Deno.serve(async (req) => {
   const q = (url.searchParams.get("q") ?? "").trim();
   const petType = url.searchParams.get("pet_type"); // 'dog' | 'cat' | null
   const lifeStage = url.searchParams.get("life_stage");
+  const brand = url.searchParams.get("brand");
   const sort = (url.searchParams.get("sort") ?? "value").toLowerCase();
   const storeFilter = url.searchParams.get("store");
 
@@ -84,6 +85,7 @@ Deno.serve(async (req) => {
     productQuery = productQuery.like("category", `${petType}_%`);
   }
   if (lifeStage) productQuery = productQuery.eq("life_stage", lifeStage);
+  if (brand) productQuery = productQuery.ilike("brand", `%${brand}%`);
 
   const { data: products, error: productErr } = await productQuery;
   if (productErr) return json({ error: productErr.message }, 500);
@@ -93,6 +95,7 @@ Deno.serve(async (req) => {
     query: q,
     pet_type: petType,
     life_stage: lifeStage,
+    brand,
     sort,
     store: storeFilter,
     stores_checked: [] as string[],
