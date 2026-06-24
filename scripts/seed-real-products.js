@@ -71,11 +71,12 @@ function lifeStageOf(title) {
 async function fetchBestsellers(apiKey, url, log) {
   // URLSearchParams guarantees the category `url` (and everything else) is
   // properly percent-encoded in the query string.
+  // NOTE: `amazon_domain` must NOT be combined with `url` — Rainforest rejects
+  // that with HTTP 400. The url already defines the domain.
   const params = new URLSearchParams({
     api_key: apiKey,
     type: 'bestsellers',
     url, // e.g. https://www.amazon.com/Best-Sellers-.../zgbs/pet-supplies/2975359011
-    amazon_domain: 'amazon.com',
   });
   const reqUrl = `https://api.rainforestapi.com/request?${params.toString()}`;
 
