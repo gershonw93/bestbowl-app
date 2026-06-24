@@ -103,7 +103,13 @@ async function fetchBestsellers(apiKey, url, log) {
     throw new Error('Rainforest returned non-JSON response');
   }
   const list = body.bestsellers || [];
-  if (log) log(`[res] ${res.status} OK — ${list.length} bestsellers in payload`);
+  if (log) {
+    log(`[res] ${res.status} OK — ${list.length} bestsellers in payload`);
+    if (list[0]) {
+      // Confirm the exact image field shape on the first result.
+      log(`[image] first result: image=${JSON.stringify(list[0].image)} main_image=${JSON.stringify(list[0].main_image)}`);
+    }
+  }
   return list;
 }
 
@@ -156,6 +162,13 @@ async function seed(opts = {}) {
       try {
         const title = prod.title;
         const price = prod.price ? num(prod.price.value ?? prod.price.raw) : null;
+        // Bestsellers returns `image` as a string URL; fall back to object
+        // forms (image.link / main_image.link) just in case the shape varies.
+        const image =
+          (typeof prod.image === 'string' && prod.image) ||
+          (prod.image && prod.image.link) ||
+          (prod.main_image && prod.main_image.link) ||
+          null;
         const category = `${cat.pet}_${foodTypeOf(title)}`;
         const link = prod.link || `https://www.amazon.com/dp/${asin}`;
         const affiliate = cfg.partnerTag ? `${link}${link.includes('?') ? '&' : '?'}tag=${cfg.partnerTag}` : link;
@@ -166,7 +179,7 @@ async function seed(opts = {}) {
           brand: prod.brand || brandOf(title),
           category,
           life_stage: lifeStageOf(title),
-          image_url: prod.image || null,
+          image_url: image,
           updated_at: new Date().toISOString(),
         }, { onConflict: 'upc' });
         if (prodErr) throw prodErr;
