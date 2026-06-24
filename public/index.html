@@ -28,6 +28,22 @@
   .screen{display:none;}
   .screen.active{display:block;animation:fade .15s ease;}
   @keyframes fade{from{opacity:0}to{opacity:1}}
+  /* product detail slides in from the right over the active tab screen */
+  #screen-product{position:fixed;inset:0;margin-inline:auto;max-width:640px;width:100%;background:var(--bg);z-index:35;overflow-y:auto;transform:translateX(100%);visibility:hidden;transition:transform .3s cubic-bezier(.2,.7,.2,1),visibility 0s .3s;will-change:transform;}
+  #screen-product.open{transform:translateX(0);visibility:visible;transition:transform .3s cubic-bezier(.2,.7,.2,1);}
+  /* brand filter */
+  .brandlink{font-size:12px;color:var(--sec);font-weight:600;cursor:pointer;display:inline-block;margin-top:2px;}
+  .brandlink.on{color:var(--green);text-decoration:underline;text-underline-offset:2px;}
+  .brandbar{display:flex;align-items:center;gap:8px;padding:2px 4px 12px;}
+  .brandchip{display:inline-flex;align-items:center;gap:8px;background:var(--green);color:#fff;border:none;border-radius:999px;padding:8px 15px;font-size:12px;font-weight:700;cursor:pointer;}
+  .brandchip .x{font-size:15px;line-height:1;}
+  /* desktop presentation */
+  @media (min-width:1000px){
+    body{background:#e6ece9;}
+    .app{max-width:680px;box-shadow:0 24px 70px rgba(8,80,65,.16);min-height:100vh;}
+    #screen-product{max-width:680px;}
+    .tabbar,.actionbar{max-width:680px;}
+  }
   .scroll{padding:16px 16px 96px;}
 
   /* ---------- header ---------- */
@@ -249,7 +265,7 @@
   </div>
 
   <!-- PRODUCT -->
-  <div class="screen" id="screen-product">
+  <div id="screen-product">
     <div class="p-hero">
       <div class="p-top">
         <button class="backbtn" id="backBtn"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>Back</button>
@@ -378,21 +394,29 @@
       index(results);
       state.filtered = results;
       if (!state.searchQuery && state.petFilter === "all" && !state.foodFilter) state.products = results;
-      renderHome(results);
+      renderHome(applyBrand(results));
     } catch (err) {
       if (mySeq !== seq) return;
       $("#homeList").innerHTML = `<div class="state"><div class="t1">Couldn't load results.</div><div class="t2">${esc(err.message)}</div></div>`;
     }
   }
 
+  function applyBrand(list) { return state.brandFilter ? list.filter((r) => r.brand === state.brandFilter) : list; }
+  function toggleBrand(b) {
+    state.brandFilter = state.brandFilter === b ? "" : b;
+    renderHome(applyBrand(state.filtered || []));
+  }
   function renderHome(results) {
+    const bar = state.brandFilter
+      ? `<div class="brandbar"><button class="brandchip" data-brand="${esc(state.brandFilter)}">${esc(state.brandFilter)} <span class="x">&times;</span></button></div>`
+      : "";
     if (!results.length) {
-      $("#homeCount").textContent = "";
-      $("#homeList").innerHTML = `<div class="state"><div class="ei">${BOWLBIG}</div><div class="t1">No products found</div><div class="t2">Try a different search</div></div>`;
+      $("#homeCount").textContent = state.brandFilter ? "0 matches" : "";
+      $("#homeList").innerHTML = bar + `<div class="state"><div class="ei">${BOWLBIG}</div><div class="t1">No products found</div><div class="t2">Try a different search</div></div>`;
       return;
     }
     $("#homeCount").textContent = `${results.length} great match${results.length === 1 ? "" : "es"}`;
-    $("#homeList").innerHTML = results.map(homeCard).join("");
+    $("#homeList").innerHTML = bar + results.map(homeCard).join("");
   }
 
   function homeCard(p) {
@@ -402,6 +426,7 @@
         ${thumb(p)}
         <div class="cmid">
           <div class="cname">${esc(p.name)}</div>
+          ${p.brand ? `<span class="brandlink ${p.brand === state.brandFilter ? "on" : ""}" data-brand="${esc(p.brand)}">${esc(p.brand)}</span>` : ""}
           <div class="cprice">from <b>${money(p.best_price)}</b></div>
         </div>
         <div class="badge display" style="background:${c.bg};color:${c.fg}">${s.toFixed(1)}</div>
@@ -569,20 +594,27 @@
   // ---------- navigation ----------
   function setScreen(name) {
     document.querySelectorAll(".screen").forEach((s) => s.classList.remove("active"));
-    $("#screen-" + name).classList.add("active");
-    document.body.classList.toggle("no-nav", name === "product");
+    const el = $("#screen-" + name);
+    if (el) el.classList.add("active");
     if (["home", "deals", "saved", "profile"].includes(name)) {
       state.activeTab = name;
       document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
+      window.scrollTo(0, 0);
     }
-    window.scrollTo(0, 0);
   }
+  // Product detail is a slide-in overlay over the active tab screen.
+  function openProduct() { document.body.classList.add("no-nav"); const el = $("#screen-product"); el.classList.add("open"); el.scrollTop = 0; }
+  function closeProduct() { document.body.classList.remove("no-nav"); $("#screen-product").classList.remove("open"); }
   function render(name, upc) {
     if (name === "product") {
       const p = upc ? state.byUpc[upc] || state.saved.find((s) => s.upc === upc) : state.currentProduct;
       if (!p) return goTab("home");
       renderProduct(p);
-    } else if (name === "deals") renderDeals();
+      openProduct();
+      return;
+    }
+    closeProduct();
+    if (name === "deals") renderDeals();
     else if (name === "saved") renderSaved();
     else if (name === "profile") renderProfile();
     setScreen(name);
@@ -613,6 +645,9 @@
     if (unsave) { e.stopPropagation(); const p = state.saved.find((x) => x.upc === unsave.dataset.unsave); if (p) { toggleSave(p); renderSaved(); } return; }
     const buy = e.target.closest("[data-url]");
     if (buy) { window.open(buy.dataset.url, "_blank", "noopener"); return; }
+    // brand link / brand chip → toggle the client-side brand filter (don't open the product)
+    const brandEl = e.target.closest("[data-brand]");
+    if (brandEl) { e.stopPropagation(); toggleBrand(brandEl.dataset.brand); return; }
     if (e.target.closest("#abSave")) { if (state.currentProduct) { toggleSave(state.currentProduct); renderProduct(state.currentProduct); } return; }
     if (e.target.closest("#abAlert")) { if (state.currentProduct) alert("Price alert set for " + state.currentProduct.name); return; }
     const item = e.target.closest("[data-upc]");
