@@ -24,12 +24,10 @@ const { seed } = require('../scripts/seed-real-products.js');
 module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(204).end();
 
-  // ⚠ TEMPORARY: secret check disabled for the first run. Re-enable by
-  // uncommenting the four lines below.
-  // const expected = process.env.SEED_SECRET;
-  // const provided = req.headers['x-seed-secret'];
-  // if (!expected) return res.status(500).json({ ok: false, error: 'SEED_SECRET is not configured on the server' });
-  // if (!provided || provided !== expected) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  // ⚠ TEMPORARY: authorization is intentionally removed so ANY GET request to
+  // this URL runs the seed. This is insecure (anyone with the URL can trigger
+  // it — 2 Rainforest credits + DB writes per hit). Re-add an x-seed-secret
+  // check, or delete this function, immediately after the first seed run.
 
   const log = [];
   try {
