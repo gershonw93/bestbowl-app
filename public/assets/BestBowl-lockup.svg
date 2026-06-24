@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 120" width="720" height="240">
+  <g transform="translate(0 0) scale(0.83)">
+    <circle cx="60" cy="60" r="48" fill="none" stroke="#1D9E75" stroke-width="4"></circle>
+    <g fill="#1D9E75">
+      <ellipse cx="60" cy="72" rx="17" ry="14"></ellipse>
+      <ellipse cx="42" cy="56" rx="7" ry="9"></ellipse>
+      <ellipse cx="54" cy="46" rx="6.5" ry="8.5"></ellipse>
+      <ellipse cx="66" cy="46" rx="6.5" ry="8.5"></ellipse>
+      <ellipse cx="78" cy="56" rx="7" ry="9"></ellipse>
+    </g></g>
+  <text x="120" y="58" font-family="&#39;Plus Jakarta Sans&#39;,Arial,sans-serif" font-size="46" font-weight="700" letter-spacing="-1.5" fill="#085041">Best<tspan fill="#1D9E75" font-weight="800">Bowl</tspan></text>
+  <text x="121" y="84" font-family="&#39;Plus Jakarta Sans&#39;,Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" fill="#888">FRESH PET FOOD</text>
+</svg>

@@ -4,6 +4,10 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>BestBowl</title>
+<link rel="icon" type="image/svg+xml" href="/assets/BestBowl-mark-green.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
 <style>
   :root{
     --brand:#1D9E75; --brand-dark:#157a5a; --brand-bg:#f5fbf8;
@@ -21,18 +25,19 @@
   .app{max-width:640px;margin:0 auto;background:var(--page);min-height:100vh;position:relative;}
 
   /* ---------- header ---------- */
-  header{position:sticky;top:0;z-index:20;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.05);padding:10px 16px 12px;}
+  header{position:sticky;top:0;z-index:20;background:#085041;box-shadow:0 2px 10px rgba(0,0,0,.18);padding:10px 16px 12px;}
   .bar1{display:flex;align-items:center;justify-content:space-between;height:36px;}
-  .logo{font-size:18px;font-weight:700;letter-spacing:-.3px;}
-  .logo .b{color:var(--ink);} .logo .o{color:var(--brand);}
+  .logo{display:flex;align-items:center;text-decoration:none;}
+  .logo img{height:32px;max-height:32px;width:auto;display:block;}
   .icon-btn{width:40px;height:40px;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--ink);margin-right:-8px;}
-  .search{display:flex;align-items:center;gap:8px;background:var(--field);border-radius:12px;padding:0 12px;height:44px;margin-top:10px;}
+  header .icon-btn{color:#E1F5EE;}
+  .search{display:flex;align-items:center;gap:8px;background:#fff;border-radius:12px;padding:0 12px;height:44px;margin-top:10px;box-shadow:0 1px 3px rgba(0,0,0,.14);}
   .search svg{flex:0 0 auto;color:var(--muted);}
   .search input{border:none;background:transparent;outline:none;width:100%;height:100%;font-size:14px;color:var(--ink);font-family:inherit;}
   .pills{display:flex;gap:8px;margin-top:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
   .pills::-webkit-scrollbar{display:none;}
-  .pill{flex:0 0 auto;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;padding:7px 14px;font-size:12px;cursor:pointer;white-space:nowrap;min-height:32px;}
-  .pill.active{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600;}
+  .pill{flex:0 0 auto;border:1px solid transparent;background:rgba(255,255,255,.15);color:#EAF7F1;border-radius:999px;padding:7px 14px;font-size:12px;cursor:pointer;white-space:nowrap;min-height:32px;}
+  .pill.active{background:#fff;border-color:#fff;color:#085041;font-weight:700;}
 
   /* ---------- toolbar ---------- */
   .toolbar{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 4px;}
@@ -120,13 +125,56 @@
   .opt-val.best{color:var(--brand);font-weight:700;}
   .opt-buy{flex:0 0 auto;width:34px;height:34px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;}
   .savings{text-align:center;font-size:12px;color:var(--brand-dark);font-weight:700;background:var(--brand-bg);border-radius:12px;padding:10px;margin-top:2px;}
+
+  /* ---------- splash ---------- */
+  #splash{position:fixed;inset:0;z-index:9999;background:#085041;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;height:100vh;height:100dvh;width:100vw;opacity:1;transition:opacity .6s ease;font-family:'Plus Jakarta Sans',system-ui,-apple-system,sans-serif;}
+  #splash.hide{opacity:0;pointer-events:none;}
+  @keyframes bb_fade{0%{opacity:0}3%{opacity:1}90%{opacity:1}100%{opacity:0}}
+  @keyframes bb_breathe{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+  @keyframes bb_dot{0%,100%{opacity:.28;transform:scale(.78)}50%{opacity:1;transform:scale(1)}}
+  @keyframes c_group{0%{opacity:0;transform:scale(.7)}4%{opacity:1}10%,100%{opacity:1;transform:scale(1)}}
+  @keyframes c_ring{0%,3%{stroke-dashoffset:302}16%,100%{stroke-dashoffset:0}}
+  @keyframes c_paw{0%,12%{opacity:0;transform:scale(.4)}18%{opacity:1;transform:scale(1.12)}21%,100%{opacity:1;transform:scale(1)}}
+  @keyframes c_pawtap{0%,23%{transform:translateY(0) scaleY(1)}27%{transform:translateY(3px) scaleY(.9)}33%{transform:translateY(0) scaleY(1)}57%{transform:translateY(0) scaleY(1)}61%{transform:translateY(2.5px) scaleY(.93)}67%,100%{transform:translateY(0) scaleY(1)}}
+  @keyframes c_toe{0%,28%{transform:translateY(0)}33%{transform:translateY(-3.5px)}41%,100%{transform:translateY(0)}}
+  @keyframes c_word{0%,20%{opacity:0;transform:translateY(16px)}27%,100%{opacity:1;transform:translateY(0)}}
+  @keyframes c_tag{0%,26%{opacity:0;transform:translateY(8px)}33%,100%{opacity:1;transform:translateY(0)}}
 </style>
 </head>
 <body>
+<!-- animated splash (inlined from BestBowl-Splash-animated.html), fades out after 2.5s -->
+<div id="splash">
+  <div style="display:flex;flex-direction:column;align-items:center;animation:bb_fade 4s ease-in-out infinite;">
+    <div style="animation:bb_breathe 3.2s ease-in-out infinite;">
+      <svg width="172" height="172" viewBox="0 0 120 120" fill="none" style="animation:c_group 4s cubic-bezier(.22,1,.36,1) infinite;transform-box:fill-box;transform-origin:center;">
+        <circle cx="60" cy="60" r="48" stroke="#1D9E75" stroke-width="4" stroke-dasharray="302" stroke-linecap="round" transform="rotate(-90 60 60)" style="animation:c_ring 4s cubic-bezier(.4,0,.2,1) infinite;"></circle>
+        <g style="animation:c_paw 4s cubic-bezier(.34,1.4,.5,1) infinite;transform-box:fill-box;transform-origin:center;">
+          <g style="animation:c_pawtap 4s cubic-bezier(.34,1.3,.5,1) infinite;transform-box:fill-box;transform-origin:60px 86px;">
+            <ellipse cx="60" cy="72" rx="17" ry="14" fill="#E1F5EE"></ellipse>
+            <ellipse cx="42" cy="56" rx="7" ry="9" fill="#E1F5EE" style="animation:c_toe 4s ease-in-out infinite;transform-box:fill-box;transform-origin:center;"></ellipse>
+            <ellipse cx="54" cy="46" rx="6.5" ry="8.5" fill="#E1F5EE" style="animation:c_toe 4s ease-in-out infinite .08s;transform-box:fill-box;transform-origin:center;"></ellipse>
+            <ellipse cx="66" cy="46" rx="6.5" ry="8.5" fill="#E1F5EE" style="animation:c_toe 4s ease-in-out infinite .16s;transform-box:fill-box;transform-origin:center;"></ellipse>
+            <ellipse cx="78" cy="56" rx="7" ry="9" fill="#E1F5EE" style="animation:c_toe 4s ease-in-out infinite .24s;transform-box:fill-box;transform-origin:center;"></ellipse>
+          </g>
+        </g>
+      </svg>
+    </div>
+    <div style="margin-top:30px;font-size:44px;font-weight:600;letter-spacing:-1.6px;">
+      <span style="color:#E1F5EE;">Best</span><span style="color:#1D9E75;font-weight:800;">Bowl</span>
+    </div>
+    <div style="margin-top:14px;font-size:13px;font-weight:600;letter-spacing:3.5px;color:#1D9E75;">FRESH&nbsp;PET&nbsp;FOOD</div>
+  </div>
+  <div style="position:absolute;bottom:64px;display:flex;gap:9px;">
+    <span style="width:8px;height:8px;border-radius:50%;background:#E1F5EE;animation:bb_dot 1.2s ease-in-out infinite;"></span>
+    <span style="width:8px;height:8px;border-radius:50%;background:#E1F5EE;animation:bb_dot 1.2s ease-in-out infinite .2s;"></span>
+    <span style="width:8px;height:8px;border-radius:50%;background:#E1F5EE;animation:bb_dot 1.2s ease-in-out infinite .4s;"></span>
+  </div>
+</div>
+
 <div class="app">
   <header>
     <div class="bar1">
-      <div class="logo"><span class="b">Best</span><span class="o">Bowl</span></div>
+      <a class="logo" href="#" aria-label="BestBowl"><img src="/assets/BestBowl-lockup-light.svg" alt="BestBowl" /></a>
       <button class="icon-btn" id="menuBtn" aria-label="Menu">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
@@ -368,6 +416,13 @@
   sheetScrim.addEventListener("click", closeSheet);
   $("#sheetHandle").addEventListener("click", closeSheet);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeSheet(); closeMenu(); } });
+
+  // splash: show for 2.5s, then fade out via CSS opacity transition and remove
+  const splash = document.getElementById("splash");
+  setTimeout(() => {
+    splash.classList.add("hide");
+    setTimeout(() => { splash.style.display = "none"; }, 650);
+  }, 2500);
 
   load();
 </script>
