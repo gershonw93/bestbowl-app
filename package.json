@@ -12,6 +12,7 @@
     "import:fda": "node scripts/import-fda-recalls.js",
     "import:all": "node scripts/import-all.js",
     "seed:multistore": "node scripts/seed-multistore.js",
+    "seed:real": "node scripts/seed-real-products.js",
     "score:quality": "node scripts/score-quality.js"
   },
   "dependencies": {
