@@ -9,6 +9,11 @@
  *   POST https://<your-app>.vercel.app/api/seed-products
  *   Header:  x-seed-secret: <value of SEED_SECRET>
  *
+ * ⚠ AUTH IS TEMPORARILY DISABLED (see below) so this can be hit from a plain
+ *   browser URL for the first seed run. RE-ENABLE the x-seed-secret check (or
+ *   delete this function) immediately after — anyone with the URL can trigger
+ *   it, and each call spends 2 Rainforest credits and writes to the DB.
+ *
  * Required Vercel environment variables:
  *   SEED_SECRET, RAINFOREST_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  *   (optional: AMAZON_PARTNER_TAG, SEED_LIMIT)
@@ -19,10 +24,10 @@ const { seed } = require('../scripts/seed-real-products.js');
 module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(204).end();
 
-  const expected = process.env.SEED_SECRET;
-  const provided = req.headers['x-seed-secret'];
-  if (!expected) return res.status(500).json({ ok: false, error: 'SEED_SECRET is not configured on the server' });
-  if (!provided || provided !== expected) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  // ⚠ TEMPORARY: authorization is intentionally removed so ANY GET request to
+  // this URL runs the seed. This is insecure (anyone with the URL can trigger
+  // it — 2 Rainforest credits + DB writes per hit). Re-add an x-seed-secret
+  // check, or delete this function, immediately after the first seed run.
 
   const log = [];
   try {
