@@ -308,7 +308,7 @@
 <div class="scrim" id="menuScrim"></div>
 <nav class="menu" id="menu" aria-hidden="true">
   <div class="menu-top"><button class="iconbtn" id="menuClose" aria-label="Close"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6l-12 12M6 6l12 12"/></svg></button></div>
-  <a href="#" data-nav="home">Home</a>
+  <a href="#" data-act="home">Home</a>
   <a href="#" data-act="how">How it works</a>
   <a href="#" data-act="soon">About</a>
   <a href="#" data-act="soon">Contact</a>
@@ -635,6 +635,7 @@
     if (item && !e.target.closest(".heart-btn")) { showProduct(item.dataset.upc); return; }
     const mi = e.target.closest("[data-act]");
     if (mi) {
+      if (mi.tagName === "A") e.preventDefault();
       const act = mi.dataset.act;
       if (act === "how") openHow();
       else if (act === "soon") alert("Coming soon!");
@@ -651,8 +652,8 @@
   $("#pHeart").addEventListener("click", () => { if (state.currentProduct) { toggleSave(state.currentProduct); updateHeartIcon(); renderProduct(state.currentProduct); } });
   $("#pShare").addEventListener("click", () => { const p = state.currentProduct; if (navigator.share && p) navigator.share({ title: p.name, text: "Check out " + p.name + " on BestBowl" }).catch(() => {}); else alert("Share " + (p ? p.name : "")); });
   document.addEventListener("click", (e) => {
-    if (e.target.closest("#abBest")) { const b = e.target.closest("#abBest"); if (b.dataset.url) window.open(b.dataset.url, "_blank", "noopener"); }
-    else if (e.target.closest("#abSave")) { if (state.currentProduct) { toggleSave(state.currentProduct); renderProduct(state.currentProduct); } }
+    // #abBest carries data-url and is opened by the delegated [data-url] handler above.
+    if (e.target.closest("#abSave")) { if (state.currentProduct) { toggleSave(state.currentProduct); renderProduct(state.currentProduct); } }
     else if (e.target.closest("#abAlert")) { if (state.currentProduct) alert("Price alert set for " + state.currentProduct.name); }
   });
 
