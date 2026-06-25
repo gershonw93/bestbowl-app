@@ -34,6 +34,7 @@ module.exports = async (req, res) => {
     const result = await seed({
       perCategory: 20,   // top 20 per category
       delayMs: 800,      // short pause between the 2 category calls
+      partnerTag: process.env.AMAZON_PARTNER_TAG || 'bestbowl0a-20', // affiliate tag
       log: (m) => log.push(m),
     });
     return res.status(200).json({ ok: true, ran_at: new Date().toISOString(), ...result, log });

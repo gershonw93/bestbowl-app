@@ -161,10 +161,16 @@ function parseItem(data) {
   );
   if (ssListing?.Price?.Amount != null) subscribeSave = ssListing.Price.Amount;
 
+  // Canonical affiliate URL: amazon.com/dp/{asin}?tag={partner tag}
+  const tag = AMAZON_PARTNER_TAG || 'bestbowl0a-20';
+  const affiliateUrl = item?.ASIN
+    ? `https://www.amazon.com/dp/${item.ASIN}?tag=${tag}`
+    : item?.DetailPageURL ?? null;
+
   return {
     price,
     subscribe_save_price: subscribeSave,
-    affiliate_url: item?.DetailPageURL ?? null,
+    affiliate_url: affiliateUrl,
     in_stock: inStock,
   };
 }
