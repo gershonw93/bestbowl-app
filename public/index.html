@@ -43,7 +43,7 @@
   /* desktop 3-column master-detail (matches the designer's Desktop layout) */
   @media (min-width:1000px){
     body{background:#e6ece9;}
-    .app{max-width:1320px;display:grid;grid-template-columns:236px minmax(0,1fr) 460px;grid-template-rows:74px 1fr;grid-template-areas:"top top top" "side list detail";background:#f2f2f0;box-shadow:0 24px 70px rgba(8,80,65,.16);min-height:100vh;height:100vh;}
+    .app{max-width:none;width:100%;display:grid;grid-template-columns:240px minmax(0,1fr) 460px;grid-template-rows:74px 1fr;grid-template-areas:"top top top" "side list detail";background:#f2f2f0;min-height:100vh;height:100vh;}
     .hd,.tabbar{display:none !important;}
     /* top bar */
     #dtopbar{display:flex;grid-area:top;align-items:center;gap:24px;background:var(--green);color:#fff;padding:0 26px;}
@@ -81,6 +81,12 @@
     #screen-product .backbtn{display:none;}
     .actionbar{position:sticky;left:auto;right:auto;transform:none;width:auto;max-width:none;}
     .card.selected{outline:2px solid var(--green);outline-offset:-1px;}
+    /* tame the detail hero so it doesn't dominate the pane */
+    #screen-product .p-hero{padding:14px 18px 22px;}
+    #screen-product .p-name{font-size:18px;margin:14px 0 4px;}
+    #screen-product .p-chip{width:76px;height:76px;}
+    #screen-product .p-chip .thumb{width:76px;height:76px;}
+    #screen-product .p-body{padding:16px 16px 40px;}
   }
   .scroll{padding:16px 16px 96px;}
 
@@ -145,7 +151,7 @@
   .menu a:active{background:var(--field);}
 
   /* ---------- product detail ---------- */
-  .p-hero{background:var(--green);color:#fff;position:sticky;top:0;z-index:20;padding:16px 18px 26px;border-radius:0 0 30px 30px;box-shadow:0 10px 30px rgba(8,80,65,.16);}
+  .p-hero{background:var(--green);color:#fff;position:relative;z-index:1;padding:16px 18px 26px;border-radius:0 0 30px 30px;box-shadow:0 10px 30px rgba(8,80,65,.16);}
   .p-top{display:flex;align-items:center;justify-content:space-between;}
   .backbtn{display:flex;align-items:center;gap:5px;background:transparent;border:none;color:#fff;font-size:15px;font-weight:800;}
   .p-chip-wrap{display:flex;flex-direction:column;align-items:center;margin-top:14px;}
