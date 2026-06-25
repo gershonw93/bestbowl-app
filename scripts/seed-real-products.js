@@ -2,9 +2,9 @@
  * seed-real-products.js
  *
  * Seeds REAL pet-food products into Supabase by pulling Amazon BEST SELLERS for
- * the dog-food and cat-food categories via the Rainforest API — only TWO
- * credits total (one request per category), each returning the top products
- * with real ASINs, prices, and images.
+ * the dog/cat food + treat categories via the Rainforest API — one credit per
+ * category (4 categories = 4 credits), each returning the top products with
+ * real ASINs, prices, and images.
  *
  * Usable two ways:
  *   - CLI:    `npm run seed:real`
@@ -29,6 +29,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const CATEGORIES = [
   { pet: 'dog', url: 'https://www.amazon.com/Best-Sellers-Pet-Supplies-Dog-Food/zgbs/pet-supplies/2975359011' },
   { pet: 'cat', url: 'https://www.amazon.com/Best-Sellers-Pet-Supplies-Cat-Food/zgbs/pet-supplies/2975265011' },
+  { pet: 'dog', foodType: 'treat', url: 'https://www.amazon.com/Best-Sellers-Pet-Supplies-Dog-Treats/zgbs/pet-supplies/2975434011' },
+  { pet: 'cat', foodType: 'treat', url: 'https://www.amazon.com/Best-Sellers-Pet-Supplies-Cat-Treats/zgbs/pet-supplies/2975309011' },
 ];
 
 // Known brands (longest/most-specific first) for tidy brand extraction from titles.
@@ -169,7 +171,8 @@ async function seed(opts = {}) {
           (prod.image && prod.image.link) ||
           (prod.main_image && prod.main_image.link) ||
           null;
-        const category = `${cat.pet}_${foodTypeOf(title)}`;
+        // Treat categories force the type; others infer dry/wet/treat from the title.
+        const category = `${cat.pet}_${cat.foodType || foodTypeOf(title)}`;
         // Canonical affiliate URL: amazon.com/dp/{asin}?tag={partner tag}
         const tag = cfg.partnerTag || 'bestbowl0a-20';
         const affiliate = `https://www.amazon.com/dp/${asin}?tag=${tag}`;

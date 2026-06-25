@@ -2,8 +2,8 @@
  * api/seed-products.js  — Vercel serverless function
  *
  * Browser-triggerable seed of real Amazon products into Supabase. Pulls the
- * Amazon best-seller dog-food and cat-food categories via Rainforest — only
- * TWO credits total — and upserts the top products into products + prices.
+ * Amazon best-seller dog/cat food + treat categories via Rainforest — one
+ * credit per category (4 = 4 credits) — upserting into products + prices.
  *
  * Trigger (e.g. from hoppscotch.io):
  *   POST https://<your-app>.vercel.app/api/seed-products
