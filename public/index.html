@@ -163,16 +163,29 @@
   .p-hero{flex:0 0 auto;touch-action:none;background:var(--green);color:#fff;position:relative;z-index:1;padding:14px 18px 18px;border-radius:0 0 26px 26px;box-shadow:0 10px 30px rgba(8,80,65,.16);}
   .p-top{display:flex;align-items:center;justify-content:space-between;}
   .backbtn{display:flex;align-items:center;gap:5px;background:transparent;border:none;color:#fff;font-size:15px;font-weight:800;}
-  .p-chip-wrap{display:flex;flex-direction:column;align-items:center;margin-top:8px;}
-  .p-chip{position:relative;width:104px;height:104px;border-radius:28px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 0 rgba(0,0,0,.08);animation:bbFloat 4s ease-in-out infinite;}
-  .p-chip .thumb{width:104px;height:104px;border-radius:28px;background:transparent;}
-  .p-sticker{position:absolute;top:-15px;right:-22px;transform:rotate(8deg);width:52px;height:52px;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 4px 0 rgba(0,0,0,.12);font-weight:800;}
+  .p-hero{transition:padding .25s ease;}
+  .p-chip-wrap{display:flex;flex-direction:column;align-items:center;margin-top:8px;transition:margin-top .25s ease,gap .25s ease;}
+  .p-chip{position:relative;flex:0 0 auto;width:104px;height:104px;border-radius:28px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 0 rgba(0,0,0,.08);animation:bbFloat 4s ease-in-out infinite;transition:width .25s ease,height .25s ease,border-radius .25s ease,box-shadow .25s ease;}
+  .p-chip .thumb{width:104px;height:104px;border-radius:28px;background:transparent;transition:width .25s ease,height .25s ease,border-radius .25s ease;}
+  .p-sticker{position:absolute;top:-15px;right:-22px;transform:rotate(8deg);width:52px;height:52px;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 4px 0 rgba(0,0,0,.12);font-weight:800;transition:width .25s ease,height .25s ease,top .25s ease,right .25s ease;}
   .p-sticker .n{font-size:21px;line-height:1;} .p-sticker .d{font-size:9px;font-weight:700;opacity:.9;}
   @keyframes bbFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
-  .p-name{font-size:19px;font-weight:800;text-align:center;line-height:1.15;margin:12px 0 4px;letter-spacing:-.5px;max-width:300px;}
+  .p-name{font-size:19px;font-weight:800;text-align:center;line-height:1.15;margin:12px 0 4px;letter-spacing:-.5px;max-width:300px;transition:font-size .25s ease,margin .25s ease;}
   .p-brand{font-size:14px;opacity:.92;font-weight:600;}
   .p-ipills{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin-top:10px;}
   .p-ipill{background:#fff;color:var(--dark);padding:6px 13px;border-radius:999px;font-size:12.5px;font-weight:700;}
+  /* collapsed hero (mobile only): once the body is scrolled, the green header
+     condenses into a compact row — small image beside a smaller left title. */
+  @media (max-width:999px){
+    #screen-product.hcol .p-hero{padding-top:10px;padding-bottom:12px;}
+    #screen-product.hcol .p-chip-wrap{flex-direction:row;align-items:center;justify-content:flex-start;gap:12px;margin-top:4px;text-align:left;}
+    #screen-product.hcol .p-chip{width:46px;height:46px;border-radius:14px;box-shadow:0 3px 0 rgba(0,0,0,.10);animation:none;}
+    #screen-product.hcol .p-chip .thumb{width:46px;height:46px;border-radius:14px;}
+    #screen-product.hcol .p-sticker{width:28px;height:28px;border-radius:9px;top:-7px;right:-9px;}
+    #screen-product.hcol .p-sticker .n{font-size:13px;} #screen-product.hcol .p-sticker .d{display:none;}
+    #screen-product.hcol .p-name{flex:1;min-width:0;font-size:15px;text-align:left;margin:0;max-width:none;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+    #screen-product.hcol .p-brand,#screen-product.hcol .p-ipills{display:none;}
+  }
   .p-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;padding:16px 16px 22px;}
   .panel{background:#fff;border-radius:26px;padding:22px;margin-bottom:14px;}
   .panel-t{font-size:17px;font-weight:800;color:var(--ink);margin-bottom:18px;}
@@ -737,7 +750,7 @@
     }
   }
   // Product detail is a slide-in overlay over the active tab screen.
-  function openProduct() { document.body.classList.add("no-nav"); const el = $("#screen-product"); el.classList.add("open"); el.scrollTop = 0; }
+  function openProduct() { document.body.classList.add("no-nav"); const el = $("#screen-product"); el.classList.add("open"); el.classList.remove("hcol"); const b = $("#pBody"); if (b) b.scrollTop = 0; }
   function closeProduct() { document.body.classList.remove("no-nav"); $("#screen-product").classList.remove("open"); }
   function render(name, upc) {
     if (name === "product") {
@@ -824,6 +837,13 @@
 
   document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => goTab(t.dataset.tab)));
   $("#backBtn").addEventListener("click", () => history.back());
+  // Collapse the detail hero into a compact bar once the body scrolls (mobile).
+  (function () {
+    const body = $("#pBody"), sp = $("#screen-product");
+    if (body && sp) body.addEventListener("scroll", () => {
+      if (body.scrollTop > 18) sp.classList.add("hcol"); else sp.classList.remove("hcol");
+    }, { passive: true });
+  })();
   $("#pHeart").addEventListener("click", () => { if (state.currentProduct) { toggleSave(state.currentProduct); renderProduct(state.currentProduct); } });
   $("#pShare").addEventListener("click", () => { const p = state.currentProduct; if (navigator.share && p) navigator.share({ title: p.name, text: "Check out " + p.name + " on BestBowl" }).catch(() => {}); else if (p) alert("Share " + p.name); });
 
