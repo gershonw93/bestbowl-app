@@ -76,17 +76,23 @@
     .toolbar{padding:18px 20px 8px;}
     #homeList{padding:0 18px 28px;}
     .scroll{padding:18px 20px 28px;}
-    /* right detail column */
-    #screen-product{grid-area:detail;position:relative;inset:auto;transform:none;visibility:visible;opacity:1;margin:0;width:auto;max-width:none;min-height:0;overflow-y:auto;z-index:auto;transition:none;border-left:1px solid var(--line);}
+    /* right detail column — fixed-height flex column: the hero stays pinned at
+       the top (compact), the body scrolls in the middle, and the action bar is
+       pinned flush to the bottom of the pane regardless of content height. */
+    #screen-product{grid-area:detail;position:relative;inset:auto;transform:none;visibility:visible;opacity:1;margin:0;width:auto;max-width:none;height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;z-index:auto;transition:none;border-left:1px solid var(--line);}
     #screen-product .backbtn{display:none;}
-    .actionbar{position:sticky;left:auto;right:auto;transform:none;width:auto;max-width:none;}
+    #screen-product .p-hero{flex:0 0 auto;}
+    #screen-product .p-body{flex:1 1 auto;min-height:0;overflow-y:auto;}
+    .actionbar{position:static;flex:0 0 auto;left:auto;right:auto;transform:none;width:auto;max-width:none;}
     .card.selected{outline:2px solid var(--green);outline-offset:-1px;}
-    /* tame the detail hero so it doesn't dominate the pane */
-    #screen-product .p-hero{padding:16px 18px 24px;}
-    #screen-product .p-name{font-size:18px;margin:16px 0 4px;}
-    #screen-product .p-chip{width:130px;height:130px;border-radius:34px;}
-    #screen-product .p-chip .thumb{width:130px;height:130px;border-radius:34px;}
-    #screen-product .p-body{padding:16px 16px 40px;}
+    /* compact the always-visible detail hero so it doesn't eat the pane */
+    #screen-product .p-hero{padding:12px 18px 18px;}
+    #screen-product .p-chip-wrap{margin-top:6px;}
+    #screen-product .p-name{font-size:17px;margin:12px 0 3px;}
+    #screen-product .p-chip{width:104px;height:104px;border-radius:28px;}
+    #screen-product .p-chip .thumb{width:104px;height:104px;border-radius:28px;}
+    #screen-product .p-ipills{margin-top:10px;}
+    #screen-product .p-body{padding:16px 16px 24px;}
   }
   .scroll{padding:16px 16px 96px;}
 
