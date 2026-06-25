@@ -38,11 +38,19 @@
   .brandchip{display:inline-flex;align-items:center;gap:8px;background:var(--green);color:#fff;border:none;border-radius:999px;padding:8px 15px;font-size:12px;font-weight:700;cursor:pointer;}
   .brandchip .x{font-size:15px;line-height:1;}
   /* desktop presentation */
+  /* desktop master-detail: list on the left, persistent product detail on the right */
   @media (min-width:1000px){
     body{background:#e6ece9;}
-    .app{max-width:680px;box-shadow:0 24px 70px rgba(8,80,65,.16);min-height:100vh;}
-    #screen-product{max-width:680px;}
-    .tabbar,.actionbar{max-width:680px;}
+    .app{max-width:1180px;display:flex;align-items:flex-start;background:#fff;box-shadow:0 24px 70px rgba(8,80,65,.16);min-height:100vh;}
+    .app > .screen{flex:0 0 560px;width:560px;min-height:100vh;border-right:1px solid var(--line);}
+    .app > .screen.active{animation:none;}
+    /* right column: always-visible detail pane (not a slide overlay on desktop) */
+    #screen-product{position:relative;inset:auto;transform:none;visibility:visible;opacity:1;margin:0;width:auto;max-width:none;flex:1 1 auto;min-height:100vh;z-index:auto;overflow:visible;transition:none;}
+    #screen-product .backbtn{display:none;}
+    .actionbar{position:sticky;left:auto;right:auto;transform:none;width:auto;max-width:none;}
+    /* bottom nav aligned under the left column */
+    .tabbar{left:calc(50% - 590px);transform:none;width:560px;max-width:560px;}
+    .card.selected{outline:2px solid var(--green);outline-offset:-1px;}
   }
   .scroll{padding:16px 16px 96px;}
 
@@ -371,6 +379,14 @@
   const thumbImg = (p) => { const u = photoUrl(p); return u ? `<img class="thumbimg" src="${esc(u)}" alt="" loading="lazy" onerror="this.remove()" />` : ""; };
   const thumb = (p) => `<div class="thumb ${petOf(p)}">${petOf(p) === "cat" ? CAT : DOG}${thumbImg(p)}</div>`;
 
+  const isDesktop = () => window.matchMedia("(min-width:1000px)").matches;
+  function markSelected(upc) {
+    document.querySelectorAll(".card.selected").forEach((c) => c.classList.remove("selected"));
+    const safe = window.CSS && CSS.escape ? CSS.escape(upc) : upc;
+    const el = document.querySelector(`.card[data-upc="${safe}"]`);
+    if (el) el.classList.add("selected");
+  }
+
   function index(arr) { arr.forEach((p) => { state.byUpc[p.upc] = p; }); }
 
   async function apiFetch(q, sort) {
@@ -395,6 +411,13 @@
       state.filtered = results;
       if (!state.searchQuery && state.petFilter === "all" && !state.foodFilter) state.products = results;
       renderHome(applyBrand(results));
+      if (isDesktop()) {
+        // keep the right-hand detail pane populated (default to the current/first product)
+        const shown = applyBrand(results);
+        const cur = state.currentProduct && shown.find((r) => r.upc === state.currentProduct.upc);
+        const pick = cur || shown[0];
+        if (pick) { renderProduct(pick); markSelected(pick.upc); }
+      }
     } catch (err) {
       if (mySeq !== seq) return;
       $("#homeList").innerHTML = `<div class="state"><div class="t1">Couldn't load results.</div><div class="t2">${esc(err.message)}</div></div>`;
@@ -620,7 +643,16 @@
     setScreen(name);
   }
   function goTab(name) { render(name); history.pushState({ screen: name }, ""); }
-  function showProduct(upc) { render("product", upc); history.pushState({ screen: "product", upc }, ""); }
+  function showProduct(upc) {
+    if (isDesktop()) {
+      // desktop: detail pane is always visible — just render into it + highlight the card
+      const p = state.byUpc[upc] || state.saved.find((s) => s.upc === upc);
+      if (p) { renderProduct(p); markSelected(upc); }
+      return;
+    }
+    render("product", upc);
+    history.pushState({ screen: "product", upc }, "");
+  }
   window.addEventListener("popstate", (e) => { const s = e.state || { screen: "home" }; render(s.screen, s.upc); });
 
   // ---------- events ----------
