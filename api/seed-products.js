@@ -5,14 +5,15 @@
  * Amazon best-seller dog/cat food + treat categories via Rainforest — one
  * credit per category (4 = 4 credits) — upserting into products + prices.
  *
- * Trigger (e.g. from hoppscotch.io):
- *   POST https://<your-app>.vercel.app/api/seed-products
- *   Header:  x-seed-secret: <value of SEED_SECRET>
+ * Authenticated two ways — both checked against the SEED_SECRET env var:
+ *   1. Header (e.g. from hoppscotch.io):
+ *        POST https://<your-app>.vercel.app/api/seed-products
+ *        Header:  x-seed-secret: <value of SEED_SECRET>
+ *   2. Query param (browser-friendly — just visit the URL):
+ *        GET  https://<your-app>.vercel.app/api/seed-products?secret=<value of SEED_SECRET>
  *
- * ⚠ AUTH IS TEMPORARILY DISABLED (see below) so this can be hit from a plain
- *   browser URL for the first seed run. RE-ENABLE the x-seed-secret check (or
- *   delete this function) immediately after — anyone with the URL can trigger
- *   it, and each call spends 2 Rainforest credits and writes to the DB.
+ * Each successful call spends 4 Rainforest credits and writes to the DB, so the
+ * secret must match or the request is rejected with 401.
  *
  * Required Vercel environment variables:
  *   SEED_SECRET, RAINFOREST_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
@@ -24,10 +25,24 @@ const { seed } = require('../scripts/seed-real-products.js');
 module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(204).end();
 
-  // ⚠ TEMPORARY: authorization is intentionally removed so ANY GET request to
-  // this URL runs the seed. This is insecure (anyone with the URL can trigger
-  // it — 2 Rainforest credits + DB writes per hit). Re-add an x-seed-secret
-  // check, or delete this function, immediately after the first seed run.
+  // --- auth: require the secret via the x-seed-secret header OR a ?secret=
+  // query param. Both are compared against SEED_SECRET so the endpoint can be
+  // triggered from a tool (header) or a plain browser tab (query string).
+  const expected = process.env.SEED_SECRET;
+  if (!expected) {
+    return res.status(500).json({ ok: false, error: 'SEED_SECRET is not configured on the server' });
+  }
+  // req.query is populated by Vercel; fall back to parsing the URL just in case.
+  const querySecret =
+    (req.query && req.query.secret) ||
+    (() => {
+      try { return new URL(req.url, 'http://localhost').searchParams.get('secret'); }
+      catch (_e) { return null; }
+    })();
+  const provided = req.headers['x-seed-secret'] || querySecret;
+  if (provided !== expected) {
+    return res.status(401).json({ ok: false, error: 'Unauthorized: missing or invalid seed secret' });
+  }
 
   const log = [];
   try {
@@ -43,5 +58,5 @@ module.exports = async (req, res) => {
   }
 };
 
-// Only 2 external calls, but raise the limit to be safe.
+// Only 4 external calls, but raise the limit to be safe.
 module.exports.config = { maxDuration: 60 };
