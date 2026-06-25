@@ -170,8 +170,9 @@ async function seed(opts = {}) {
           (prod.main_image && prod.main_image.link) ||
           null;
         const category = `${cat.pet}_${foodTypeOf(title)}`;
-        const link = prod.link || `https://www.amazon.com/dp/${asin}`;
-        const affiliate = cfg.partnerTag ? `${link}${link.includes('?') ? '&' : '?'}tag=${cfg.partnerTag}` : link;
+        // Canonical affiliate URL: amazon.com/dp/{asin}?tag={partner tag}
+        const tag = cfg.partnerTag || 'bestbowl0a-20';
+        const affiliate = `https://www.amazon.com/dp/${asin}?tag=${tag}`;
 
         const { error: prodErr } = await supabase.from('products').upsert({
           upc: asin,                       // ASINs are real + unique; used as the key
