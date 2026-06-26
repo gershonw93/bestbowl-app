@@ -4,7 +4,26 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="impact-site-verification" value="0c3e5b97-cf85-4075-864c-25699b7a8824" />
-<title>BestBowl</title>
+<title>BestBowl — Compare pet food prices &amp; quality</title>
+<meta name="description" content="BestBowl compares live pet-food prices across Chewy, Amazon, Walmart and PetSmart — with ingredient-quality and recall scores — so you always get the best bowl for less." />
+<meta name="theme-color" content="#1D9E75" />
+<link rel="canonical" href="https://bestbowl-app.vercel.app/" />
+<!-- Open Graph / social cards -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="BestBowl" />
+<meta property="og:title" content="BestBowl — the best bowl for less" />
+<meta property="og:description" content="Compare pet-food prices across Chewy, Amazon, Walmart & PetSmart, with ingredient & recall scores." />
+<meta property="og:url" content="https://bestbowl-app.vercel.app/" />
+<meta property="og:image" content="https://bestbowl-app.vercel.app/assets/BestBowl-Splash-final-frame.png" />
+<meta property="og:image:width" content="924" />
+<meta property="og:image:height" content="540" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="BestBowl — the best bowl for less" />
+<meta name="twitter:description" content="Compare pet-food prices across Chewy, Amazon, Walmart & PetSmart, with ingredient & recall scores." />
+<meta name="twitter:image" content="https://bestbowl-app.vercel.app/assets/BestBowl-Splash-final-frame.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="BestBowl" />
+<link rel="apple-touch-icon" href="/assets/BestBowl-app-icon.svg" />
 <link rel="icon" href="/assets/BestBowl-mark-green.svg" type="image/svg+xml" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -266,6 +285,80 @@
   @keyframes c_paw{0%,12%{opacity:0;transform:scale(.4)}18%{opacity:1;transform:scale(1.12)}21%,100%{opacity:1;transform:scale(1)}}
   @keyframes c_word{0%,20%{opacity:0;transform:translateY(16px)}27%,100%{opacity:1;transform:translateY(0)}}
   @keyframes c_tag{0%,26%{opacity:0;transform:translateY(8px)}33%,100%{opacity:1;transform:translateY(0)}}
+  /* ---------- auth + settings sheets ---------- */
+  .sheet{position:fixed;top:0;left:0;right:0;bottom:auto;margin-inline:auto;max-width:640px;width:100%;height:100vh;height:100dvh;background:var(--bg);z-index:60;overflow:hidden;display:flex;flex-direction:column;transform:translateX(100%);visibility:hidden;transition:transform .3s cubic-bezier(.2,.7,.2,1),visibility 0s .3s;will-change:transform;}
+  .sheet.open{transform:translateX(0);visibility:visible;transition:transform .3s cubic-bezier(.2,.7,.2,1);}
+  .sheet-hd{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:14px 14px 12px;background:#fff;border-bottom:1px solid var(--line);}
+  .sheet-hd .sh-title{font-size:17px;font-weight:800;font-family:'Bricolage Grotesque',sans-serif;}
+  .sheet-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:18px 16px 48px;}
+  .icon-x{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;background:var(--field);border:none;color:var(--ink);cursor:pointer;flex:0 0 auto;}
+  /* forms */
+  .fld{margin-bottom:14px;}
+  .fld label{display:block;font-size:12.5px;font-weight:700;color:var(--sec);margin:0 0 6px 4px;}
+  .fld input,.fld select{width:100%;background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:14px;font-size:15px;font-family:inherit;font-weight:600;color:var(--ink);outline:none;transition:border-color .15s;-webkit-appearance:none;appearance:none;}
+  .fld select{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");background-repeat:no-repeat;background-position:right 12px center;padding-right:38px;}
+  .fld input:focus,.fld select:focus{border-color:var(--green);}
+  .fld input::placeholder{color:var(--mut);font-weight:500;}
+  .fld .hint{font-size:11.5px;color:var(--mut);margin:5px 0 0 4px;font-weight:600;}
+  .pw-wrap{position:relative;}
+  .pw-wrap input{padding-right:46px;}
+  .pw-wrap .pw-eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--sec);padding:8px;cursor:pointer;display:flex;}
+  .check-row{display:flex;align-items:flex-start;gap:10px;margin:2px 0 16px;}
+  .check-row input{margin-top:2px;width:18px;height:18px;accent-color:var(--green);flex:0 0 auto;}
+  .check-row label{font-size:12.5px;color:var(--body);font-weight:600;line-height:1.4;}
+  .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;border:none;border-radius:16px;padding:15px;font-size:15.5px;font-weight:800;font-family:inherit;cursor:pointer;transition:transform .06s,box-shadow .12s;}
+  .btn:active{transform:translateY(1px);}
+  .btn-primary{background:var(--green);color:#fff;box-shadow:0 5px 0 var(--green-sh);}
+  .btn-primary:disabled{opacity:.65;cursor:default;}
+  .btn-ghost{background:#fff;color:var(--ink);border:1.5px solid var(--line);box-shadow:0 4px 0 rgba(8,80,65,.06);}
+  .btn-danger{background:#fff;color:var(--red);border:1.5px solid #f3d4d1;box-shadow:none;}
+  .btn-link{background:none;border:none;color:var(--green);font-weight:800;font-size:14px;cursor:pointer;padding:4px;font-family:inherit;}
+  .btn .spin{width:17px;height:17px;border:2.5px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:bbspin .7s linear infinite;}
+  @keyframes bbspin{to{transform:rotate(360deg)}}
+  .auth-hero{text-align:center;padding:6px 0 16px;}
+  .auth-mark{width:58px;height:58px;margin:0 auto 12px;border-radius:19px;background:var(--green);display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:0 6px 0 var(--green-sh);}
+  .auth-h{font-size:22px;font-weight:800;font-family:'Bricolage Grotesque',sans-serif;letter-spacing:-.5px;}
+  .auth-p{font-size:13.5px;color:var(--sec);font-weight:600;margin-top:5px;}
+  .auth-alt{text-align:center;font-size:13.5px;color:var(--sec);font-weight:600;margin-top:18px;}
+  .auth-err{background:#fdecea;color:#c0392b;border-radius:12px;padding:11px 13px;font-size:13px;font-weight:600;margin-bottom:14px;display:none;}
+  .auth-ok{background:var(--mint);color:var(--dark);border-radius:12px;padding:11px 13px;font-size:13px;font-weight:600;margin-bottom:14px;display:none;}
+  .auth-err.show,.auth-ok.show{display:block;}
+  .auth-view{display:none;}
+  .auth-view.on{display:block;animation:bbFade .25s ease;}
+  @keyframes bbFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .seg{display:flex;gap:8px;}
+  .seg button{flex:1;background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:12px 6px;font-size:14px;font-weight:700;color:var(--sec);cursor:pointer;font-family:inherit;}
+  .seg button.on{background:var(--green);color:#fff;border-color:var(--green);}
+  /* settings */
+  .set-grp{margin-bottom:22px;}
+  .set-grp-t{font-size:12px;font-weight:800;color:var(--sec);text-transform:uppercase;letter-spacing:.5px;margin:0 0 10px 6px;}
+  .set-card{background:#fff;border-radius:18px;box-shadow:0 4px 0 rgba(8,80,65,.06);overflow:hidden;}
+  .set-row{display:flex;align-items:center;gap:13px;padding:15px;border-bottom:1px solid var(--line);}
+  .set-row:last-child{border-bottom:none;}
+  .set-row .sr-ic{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:var(--dogbg);color:var(--green);flex:0 0 auto;}
+  .set-row .sr-ic.gray{background:var(--field);color:var(--sec);}
+  .set-row .sr-mid{flex:1;min-width:0;}
+  .set-row .sr-t{font-size:14.5px;font-weight:700;}
+  .set-row .sr-s{font-size:12px;color:var(--sec);font-weight:600;margin-top:2px;}
+  .set-row.tap{cursor:pointer;}
+  .switch{position:relative;width:46px;height:28px;flex:0 0 auto;}
+  .switch input{opacity:0;width:0;height:0;position:absolute;}
+  .switch .track{position:absolute;inset:0;background:var(--track);border-radius:999px;transition:background .2s;cursor:pointer;}
+  .switch .track::before{content:"";position:absolute;width:22px;height:22px;border-radius:50%;background:#fff;top:3px;left:3px;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:transform .2s;}
+  .switch input:checked + .track{background:var(--green);}
+  .switch input:checked + .track::before{transform:translateX(18px);}
+  .acct-head{display:flex;align-items:center;gap:14px;background:#fff;border-radius:20px;padding:16px;box-shadow:0 4px 0 rgba(8,80,65,.06);margin-bottom:22px;}
+  .acct-av{width:54px;height:54px;border-radius:18px;background:var(--orange);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:19px;flex:0 0 auto;}
+  .acct-nm{font-size:16px;font-weight:800;}
+  .acct-em{font-size:12.5px;color:var(--sec);font-weight:600;margin-top:2px;word-break:break-all;}
+  .auth-cta{background:var(--green);border-radius:22px;padding:24px 20px;text-align:center;box-shadow:0 6px 0 var(--green-sh);margin-bottom:18px;color:#fff;}
+  .auth-cta h3{font-size:19px;font-weight:800;font-family:'Bricolage Grotesque',sans-serif;}
+  .auth-cta p{font-size:13px;opacity:.92;font-weight:600;margin:7px 0 16px;}
+  .auth-cta .btn-primary{background:#fff;color:var(--dark);box-shadow:0 5px 0 rgba(0,0,0,.14);}
+  .auth-cta .btn-ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.5);box-shadow:none;margin-top:10px;}
+  .legal-body{font-size:13.5px;color:var(--body);line-height:1.6;font-weight:500;}
+  .legal-body h4{font-size:15px;font-weight:800;margin:18px 0 6px;color:var(--ink);}
+  .legal-body p{margin:0 0 10px;}
 </style>
 </head>
 <body>
@@ -408,10 +501,10 @@
   <!-- PROFILE -->
   <div class="screen" id="screen-profile">
     <div class="hd" style="padding-bottom:20px;">
-      <div class="prof-head">
-        <div class="avatar display">GW</div>
-        <div class="prof-name display">Guest User</div>
-        <div class="prof-sub">Tap to set up your profile</div>
+      <div class="prof-head" id="profHead">
+        <div class="avatar display" id="profAv">🐾</div>
+        <div class="prof-name display" id="profNm">Guest</div>
+        <div class="prof-sub" id="profSub">Sign in to save foods &amp; set alerts</div>
       </div>
     </div>
     <div class="scroll" id="profileList"></div>
@@ -444,15 +537,88 @@
   </div>
 </div>
 
+<!-- AUTH: sign in / sign up / forgot / reset -->
+<div class="sheet" id="screen-auth">
+  <div class="sheet-hd">
+    <button class="icon-x" id="authClose" aria-label="Close"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    <span class="sh-title" id="authTitle">Sign in</span>
+  </div>
+  <div class="sheet-body">
+    <div class="auth-hero">
+      <div class="auth-mark">🐾</div>
+      <div class="auth-h" id="authHeading">Welcome back</div>
+      <div class="auth-p" id="authSub">Sign in to save foods and set price alerts</div>
+    </div>
+    <div class="auth-err" id="authErr"></div>
+    <div class="auth-ok" id="authOk"></div>
+
+    <form class="auth-view on" id="view-login" autocomplete="on" novalidate>
+      <div class="fld"><label>Email</label><input type="email" id="li-email" placeholder="you@email.com" autocomplete="email" /></div>
+      <div class="fld"><label>Password</label><div class="pw-wrap"><input type="password" id="li-pw" placeholder="Your password" autocomplete="current-password" /><button type="button" class="pw-eye" data-eye="li-pw" aria-label="Show password"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+      <div style="text-align:right;margin:-4px 0 14px;"><button type="button" class="btn-link" data-go="forgot">Forgot password?</button></div>
+      <button type="submit" class="btn btn-primary" id="li-submit">Sign in</button>
+      <div class="auth-alt">New to BestBowl? <button type="button" class="btn-link" data-go="signup">Create an account</button></div>
+    </form>
+
+    <form class="auth-view" id="view-signup" autocomplete="on" novalidate>
+      <div class="fld"><label>Full name</label><input type="text" id="su-name" placeholder="Jane Smith" autocomplete="name" /></div>
+      <div class="fld"><label>Email</label><input type="email" id="su-email" placeholder="you@email.com" autocomplete="email" /></div>
+      <div class="fld"><label>Password</label><div class="pw-wrap"><input type="password" id="su-pw" placeholder="At least 8 characters" autocomplete="new-password" /><button type="button" class="pw-eye" data-eye="su-pw" aria-label="Show password"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div><div class="hint">Use 8 or more characters.</div></div>
+      <div class="fld"><label>I have a…</label><div class="seg" id="su-pet"><button type="button" data-pet="dog" class="on">🐶 Dog</button><button type="button" data-pet="cat">🐱 Cat</button><button type="button" data-pet="both">Both</button></div></div>
+      <div class="fld"><label>How did you hear about us?</label><select id="su-heard"><option value="">Select one…</option><option>Google search</option><option>TikTok</option><option>Instagram</option><option>Facebook</option><option>YouTube</option><option>Reddit</option><option>Friend or family</option><option>Pet blog or forum</option><option>App Store</option><option>Other</option></select></div>
+      <div class="check-row"><input type="checkbox" id="su-mkt" checked /><label for="su-mkt">Email me price drops, deals and the occasional BestBowl update. You can turn this off anytime.</label></div>
+      <button type="submit" class="btn btn-primary" id="su-submit">Create account</button>
+      <div class="auth-alt">Already have an account? <button type="button" class="btn-link" data-go="login">Sign in</button></div>
+    </form>
+
+    <form class="auth-view" id="view-forgot" autocomplete="on" novalidate>
+      <div class="fld"><label>Email</label><input type="email" id="fp-email" placeholder="you@email.com" autocomplete="email" /></div>
+      <button type="submit" class="btn btn-primary" id="fp-submit">Send reset link</button>
+      <div class="auth-alt"><button type="button" class="btn-link" data-go="login">Back to sign in</button></div>
+    </form>
+
+    <form class="auth-view" id="view-reset" autocomplete="on" novalidate>
+      <div class="fld"><label>New password</label><div class="pw-wrap"><input type="password" id="rp-pw" placeholder="At least 8 characters" autocomplete="new-password" /><button type="button" class="pw-eye" data-eye="rp-pw" aria-label="Show password"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+      <button type="submit" class="btn btn-primary" id="rp-submit">Update password</button>
+    </form>
+
+    <div class="auth-view" id="view-sent">
+      <div style="text-align:center;padding:8px 0;">
+        <div class="auth-mark" style="background:var(--mint);box-shadow:0 6px 0 #cbe9df;">📬</div>
+        <div class="auth-h" id="sentH">Check your email</div>
+        <div class="auth-p" id="sentP" style="margin:8px auto 0;max-width:290px;">We sent you a link. Tap it to continue.</div>
+        <button type="button" class="btn btn-ghost" style="margin-top:22px;" data-go="login">Back to sign in</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS sub-page (content rendered dynamically) -->
+<div class="sheet" id="screen-sub">
+  <div class="sheet-hd">
+    <button class="icon-x" id="subBack" aria-label="Back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg></button>
+    <span class="sh-title" id="subTitle">Settings</span>
+  </div>
+  <div class="sheet-body" id="subBody"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
   const API = "https://skkilfwlehvgxlmrbfsa.supabase.co/functions/v1/search";
   const ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNra2lsZndsZWh2Z3hsbXJiZnNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyMjUzODcsImV4cCI6MjA5NzgwMTM4N30.cjTf5yhOqTCBNpzWIUIOCt5iAUMdxkDX6Sy4bzd4yEo";
+
+  const SUPA_URL = "https://skkilfwlehvgxlmrbfsa.supabase.co";
+  // supabase-js (loaded via CDN above). Guard so the app still runs if it fails.
+  const sb = (window.supabase && window.supabase.createClient)
+    ? window.supabase.createClient(SUPA_URL, ANON, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } })
+    : null;
 
   const state = {
     products: [], filtered: [], currentProduct: null,
     saved: JSON.parse(localStorage.getItem("savedProducts") || "[]"),
     activeTab: "home", petFilter: "all", foodFilter: "", sortBy: "value",
     searchQuery: "", dealFilter: "all", byUpc: {},
+    user: null, profile: null, authView: "login", suPet: "dog",
   };
 
   const $ = (s) => document.querySelector(s);
@@ -712,28 +878,276 @@
     localStorage.setItem("savedProducts", JSON.stringify(state.saved));
   }
 
-  // ---------- profile ----------
+  // ---------- icons ----------
+  const SVG = {
+    user: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>',
+    dog: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5h3l2 2h3a1 1 0 0 1 1 1v3a4 4 0 0 1 -4 4v4h-7v-3a4 4 0 0 1 -4 -4v-5l2 2"/><path d="M16 9h.01"/></svg>',
+    bell: BELL("currentColor", 20),
+    mail: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>',
+    shield: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>',
+    help: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 17v.01"/><path d="M12 13.5a1.5 1.5 0 0 1 1 -1.5a2.6 2.6 0 1 0 -3 -4"/></svg>',
+    lock: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+  };
+
+  // ---------- auth helpers ----------
+  function initialsOf() {
+    const n = (state.profile && state.profile.full_name) || (state.user && state.user.email) || "?";
+    const parts = String(n).replace(/@.*/, "").trim().split(/[\s._-]+/).filter(Boolean);
+    return (((parts[0] || "")[0] || "") + ((parts[1] || "")[0] || "")).toUpperCase() || String(n)[0].toUpperCase();
+  }
+  function displayName() {
+    return (state.profile && state.profile.full_name) ||
+      (state.user && state.user.email ? state.user.email.split("@")[0] : "Guest");
+  }
+  function petLabel() {
+    const p = state.profile && state.profile.pet_type;
+    return p === "both" ? "Dog & Cat" : p === "cat" ? "Cat" : p === "dog" ? "Dog" : "Not set";
+  }
+  function updateAvatars() {
+    const dav = $("#davatar"); if (dav) dav.textContent = state.user ? initialsOf() : "GW";
+  }
+  function renderProfileHeader() {
+    const av = $("#profAv"), nm = $("#profNm"), sub = $("#profSub");
+    if (!nm) return;
+    if (state.user) { if (av) av.textContent = initialsOf(); nm.textContent = displayName(); sub.textContent = state.user.email || ""; }
+    else { if (av) av.textContent = "🐾"; nm.textContent = "Guest"; sub.textContent = "Sign in to save foods & set alerts"; }
+  }
+
+  let toastT;
+  function toast(msg) {
+    let t = $("#bbToast");
+    if (!t) { t = document.createElement("div"); t.id = "bbToast"; t.style.cssText = "position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(10px);background:#085041;color:#fff;font-weight:700;font-size:14px;padding:12px 18px;border-radius:14px;z-index:100;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;max-width:88%;text-align:center;"; document.body.appendChild(t); }
+    t.textContent = msg;
+    requestAnimationFrame(() => { t.style.opacity = "1"; t.style.transform = "translateX(-50%) translateY(0)"; });
+    clearTimeout(toastT); toastT = setTimeout(() => { t.style.opacity = "0"; t.style.transform = "translateX(-50%) translateY(10px)"; }, 2200);
+  }
+
+  // ---------- profile tab ----------
+  function setRow(o) {
+    const right = o.toggle
+      ? `<label class="switch"><input type="checkbox" data-toggle="${o.toggleKey}" ${o.toggleOn ? "checked" : ""}><span class="track"></span></label>`
+      : `<div class="chev">${CHEV}</div>`;
+    const tap = o.sub ? `data-sub="${o.sub}"` : (o.auth ? `data-auth="${o.auth}"` : "");
+    return `<div class="set-row ${o.sub || o.auth ? "tap" : ""}" ${tap}>
+        <div class="sr-ic ${o.green ? "" : "gray"}">${SVG[o.ic] || ""}</div>
+        <div class="sr-mid"><div class="sr-t">${o.t}</div>${o.s ? `<div class="sr-s">${esc(o.s)}</div>` : ""}</div>
+        ${right}</div>`;
+  }
+  function setGroup(title, rows) {
+    return `<div class="set-grp">${title ? `<div class="set-grp-t">${title}</div>` : ""}<div class="set-card">${rows.join("")}</div></div>`;
+  }
   function renderProfile() {
-    const items = [
-      { ic: "dog", t: "My Pets", s: "Add your pet's name and food", green: true, act: "soon" },
-      { ic: "card", t: "Memberships", s: "Prime, Costco, Walmart+", green: true, act: "soon" },
-      { ic: "bell", t: "Price Alerts", s: "0 active alerts", green: true, act: "soon" },
-      { ic: "settings", t: "Settings", s: "Notifications, Privacy", green: false, act: "soon" },
-      { ic: "help", t: "How it works", s: "About BestBowl", green: false, act: "how" },
-    ];
-    const IC = {
-      dog: '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5h3l2 2h3a1 1 0 0 1 1 1v3a4 4 0 0 1 -4 4v4h-7v-3a4 4 0 0 1 -4 -4v-5l2 2"/><path d="M16 9h.01"/></svg>',
-      card: '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18"/></svg>',
-      bell: BELL("currentColor", 21),
-      settings: '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1 .1a2 2 0 1 1 -2.8 2.8a1.6 1.6 0 0 0 -2.7 1.1a2 2 0 1 1 -4 0a1.6 1.6 0 0 0 -2.7 -1.1a2 2 0 1 1 -2.8 -2.8a1.6 1.6 0 0 0 -1.1 -2.7a2 2 0 1 1 0 -4a1.6 1.6 0 0 0 1.1 -2.7a2 2 0 1 1 2.8 -2.8a1.6 1.6 0 0 0 2.7 -1.1a2 2 0 1 1 4 0a1.6 1.6 0 0 0 2.7 1.1a2 2 0 1 1 2.8 2.8a1.6 1.6 0 0 0 1.1 2.7a2 2 0 1 1 0 4a1.6 1.6 0 0 0 -1.1 1"/></svg>',
-      help: '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 17v.01"/><path d="M12 13.5a1.5 1.5 0 0 1 1 -1.5a2.6 2.6 0 1 0 -3 -4"/></svg>',
-    };
-    $("#profileList").innerHTML = items.map((m) => `
-      <div class="mitem" data-act="${m.act}">
-        <div class="mi-ic ${m.green ? "" : "gray"}">${IC[m.ic]}</div>
-        <div class="mi-mid"><div class="mi-t">${m.t}</div><div class="mi-s">${m.s}</div></div>
-        <div class="chev">${CHEV}</div>
-      </div>`).join("");
+    renderProfileHeader();
+    const host = $("#profileList");
+    if (!state.user) {
+      host.innerHTML = `
+        <div class="auth-cta">
+          <h3>Save foods you love</h3>
+          <p>Create a free account to save products, track price drops and get deal alerts.</p>
+          <button class="btn btn-primary" data-auth="signup">Create account</button>
+          <button class="btn btn-ghost" data-auth="login">I already have an account</button>
+        </div>` +
+        setGroup("About", [
+          setRow({ ic: "shield", t: "Privacy & legal", s: "Policy, terms, disclosure", green: false, sub: "legal" }),
+          setRow({ ic: "help", t: "How it works", s: "About BestBowl", green: false, sub: "how" }),
+        ]);
+      return;
+    }
+    host.innerHTML =
+      setGroup("Account", [
+        setRow({ ic: "user", t: "Account", s: state.user.email, green: true, sub: "account" }),
+        setRow({ ic: "dog", t: "My pet", s: petLabel(), green: true, sub: "pets" }),
+      ]) +
+      setGroup("Preferences", [
+        setRow({ ic: "bell", t: "Notifications", s: "Alerts, deals & digest", green: true, sub: "notifications" }),
+      ]) +
+      setGroup("About", [
+        setRow({ ic: "shield", t: "Privacy & legal", s: "Policy, terms, disclosure", green: false, sub: "legal" }),
+        setRow({ ic: "help", t: "How it works", s: "About BestBowl", green: false, sub: "how" }),
+      ]) +
+      `<button class="btn btn-ghost" data-sub="signout">Sign out</button>`;
+  }
+
+  // ---------- settings sub-pages ----------
+  function renderAccount() {
+    return `
+      <div class="acct-head"><div class="acct-av">${initialsOf()}</div>
+        <div><div class="acct-nm">${esc(displayName())}</div><div class="acct-em">${esc(state.user.email || "")}</div></div></div>
+      <div class="fld"><label>Full name</label><input type="text" id="ac-name" value="${esc((state.profile && state.profile.full_name) || "")}" placeholder="Your name"></div>
+      <button class="btn btn-primary" id="ac-save">Save changes</button>
+      <div class="auth-ok" id="ac-ok" style="margin-top:12px;"></div>
+      <div class="set-grp" style="margin-top:24px;"><div class="set-card">
+        <div class="set-row tap" data-sub="changepw"><div class="sr-ic gray">${SVG.lock}</div><div class="sr-mid"><div class="sr-t">Change password</div></div><div class="chev">${CHEV}</div></div>
+      </div></div>
+      <button class="btn btn-ghost" data-sub="signout">Sign out</button>
+      <button class="btn btn-danger" data-sub="delete" style="margin-top:10px;">Delete account</button>`;
+  }
+  function renderPets() {
+    const pt = (state.profile && state.profile.pet_type) || "";
+    state.editPet = pt || "dog";
+    return `
+      <p class="auth-p" style="text-align:left;margin:0 0 14px;">Tell us what you've got so we can tailor results.</p>
+      <div class="seg" id="pet-seg">
+        <button type="button" data-pet="dog" class="${pt === "dog" ? "on" : ""}">🐶 Dog</button>
+        <button type="button" data-pet="cat" class="${pt === "cat" ? "on" : ""}">🐱 Cat</button>
+        <button type="button" data-pet="both" class="${pt === "both" ? "on" : ""}">Both</button>
+      </div>
+      <button class="btn btn-primary" id="pet-save" style="margin-top:18px;">Save</button>
+      <div class="auth-ok" id="pet-ok" style="margin-top:12px;"></div>`;
+  }
+  function renderNotifs() {
+    const pr = state.profile || {};
+    return `<p class="auth-p" style="text-align:left;margin:0 0 14px;">Choose what BestBowl can email you.</p>` +
+      setGroup("", [
+        setRow({ ic: "bell", t: "Price-drop alerts", s: "When a saved food gets cheaper", green: true, toggle: true, toggleKey: "price_alerts", toggleOn: pr.price_alerts !== false }),
+        setRow({ ic: "mail", t: "Weekly deals digest", s: "Best pet deals, once a week", green: true, toggle: true, toggleKey: "weekly_digest", toggleOn: !!pr.weekly_digest }),
+        setRow({ ic: "mail", t: "Product updates", s: "News & occasional offers", green: false, toggle: true, toggleKey: "marketing_opt_in", toggleOn: pr.marketing_opt_in !== false }),
+      ]);
+  }
+  function renderChangePw() {
+    return `
+      <p class="auth-p" style="text-align:left;margin:0 0 14px;">Choose a new password for your account.</p>
+      <div class="fld"><label>New password</label><div class="pw-wrap"><input type="password" id="cp-pw" placeholder="At least 8 characters" autocomplete="new-password"><button type="button" class="pw-eye" data-eye="cp-pw" aria-label="Show password"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+      <button class="btn btn-primary" id="cp-save">Update password</button>
+      <div class="auth-ok" id="cp-ok" style="margin-top:12px;"></div>
+      <div class="auth-err" id="cp-err" style="margin-top:12px;"></div>`;
+  }
+  function renderLegal() {
+    return `<div class="legal-body">
+      <h4>Affiliate disclosure</h4><p>BestBowl earns commissions from qualifying purchases made through links to Chewy, Amazon, Walmart and PetSmart. This never changes the price you pay, and never affects our quality scores or rankings — we always surface the genuine lowest price.</p>
+      <h4>Privacy</h4><p>We store your email, name and pet preferences to power your account, saved foods and price alerts. We never sell your data, and you can delete your account anytime from the Account page.</p>
+      <h4>Terms</h4><p>Prices and availability are pulled from third-party retailers and can change at any time. BestBowl is a comparison tool, not a seller — your purchase is completed on the retailer's own site under their terms.</p>
+      <p style="margin-top:18px;color:var(--mut);">© 2026 BestBowl · Made for pets.</p>
+    </div>`;
+  }
+  function renderHowPage() {
+    return `<div class="legal-body">
+      <h4>1 · Search</h4><p>Search any pet food brand or product.</p>
+      <h4>2 · Compare</h4><p>We compare live prices across Chewy, Amazon, Walmart and PetSmart, plus an ingredient-quality and recall score for each food.</p>
+      <h4>3 · Grab it</h4><p>Tap “Grab it” to buy at the lowest price instantly — we send you straight to the cheapest store.</p>
+    </div>`;
+  }
+  const SUB_PAGES = {
+    account: ["Account", renderAccount],
+    pets: ["My pet", renderPets],
+    notifications: ["Notifications", renderNotifs],
+    changepw: ["Change password", renderChangePw],
+    legal: ["Privacy & legal", renderLegal],
+    how: ["How it works", renderHowPage],
+  };
+  function openSub(key) {
+    const page = SUB_PAGES[key]; if (!page) return;
+    $("#subTitle").textContent = page[0];
+    $("#subBody").innerHTML = page[1]();
+    $("#screen-sub").classList.add("open");
+    document.body.classList.add("no-nav");
+    $("#subBody").scrollTop = 0;
+  }
+  function closeSub() { $("#screen-sub").classList.remove("open"); document.body.classList.remove("no-nav"); }
+  function handleSub(key) {
+    if (key === "signout") return doSignOut();
+    if (key === "delete") return doDelete();
+    openSub(key);
+  }
+
+  // ---------- auth flow ----------
+  const AUTH_META = {
+    login: ["Sign in", "Welcome back", "Sign in to save foods and set price alerts"],
+    signup: ["Create account", "Create your account", "Save foods, track prices, get deal alerts"],
+    forgot: ["Reset password", "Forgot your password?", "Enter your email and we'll send a reset link"],
+    reset: ["New password", "Set a new password", "Choose a strong new password for your account"],
+    sent: ["Almost there", "", ""],
+  };
+  function openAuth(view) {
+    if (!sb) { alert("Sign-in is temporarily unavailable. Please try again shortly."); return; }
+    $("#screen-auth").classList.add("open");
+    document.body.classList.add("no-nav");
+    showAuthView(view || "login");
+  }
+  function closeAuth() { $("#screen-auth").classList.remove("open"); document.body.classList.remove("no-nav"); }
+  function showAuthView(v) {
+    state.authView = v;
+    document.querySelectorAll("#screen-auth .auth-view").forEach((el) => el.classList.remove("on"));
+    const el = $("#view-" + v); if (el) el.classList.add("on");
+    clearAuthMsg();
+    const m = AUTH_META[v] || AUTH_META.login;
+    $("#authTitle").textContent = m[0];
+    $("#authHeading").textContent = m[1];
+    $("#authSub").textContent = m[2];
+    document.querySelector("#screen-auth .auth-hero").style.display = (v === "sent") ? "none" : "";
+  }
+  function clearAuthMsg() { $("#authErr").classList.remove("show"); $("#authOk").classList.remove("show"); }
+  function showAuthErr(msg) { const e = $("#authErr"); e.textContent = msg; e.classList.add("show"); $("#authOk").classList.remove("show"); }
+  function busy(btn, on) { if (!btn) return; if (on) { btn._t = btn.innerHTML; btn.innerHTML = '<span class="spin"></span>'; btn.disabled = true; } else { btn.disabled = false; if (btn._t) btn.innerHTML = btn._t; } }
+  function prettyAuthErr(e) {
+    const m = (e && e.message) || "Something went wrong.";
+    if (/invalid login credentials/i.test(m)) return "Incorrect email or password.";
+    if (/already registered|already.*exists|user already/i.test(m)) return "That email already has an account — try signing in.";
+    if (/rate limit|too many|429/i.test(m)) return "Too many attempts. Please wait a minute and try again.";
+    if (/email.*not confirmed/i.test(m)) return "Please confirm your email first (check your inbox).";
+    if (/password should be at least/i.test(m)) return "Password must be at least 8 characters.";
+    return m;
+  }
+
+  async function loadProfile() {
+    if (!sb || !state.user) { state.profile = null; return; }
+    try { const { data } = await sb.from("profiles").select("*").eq("id", state.user.id).maybeSingle(); state.profile = data || null; }
+    catch (_e) { state.profile = null; }
+  }
+  async function updateProfile(patch) {
+    if (!sb || !state.user) return { error: { message: "Not signed in" } };
+    const r = await sb.from("profiles").update(patch).eq("id", state.user.id);
+    if (!r.error) state.profile = Object.assign({}, state.profile, patch);
+    return r;
+  }
+  function refreshAuthUI() { updateAvatars(); renderProfileHeader(); if (state.activeTab === "profile") renderProfile(); }
+
+  async function doSignOut() { if (!sb) return; await sb.auth.signOut(); closeSub(); toast("Signed out"); }
+  async function doDelete() {
+    if (!confirm("Delete your account and all your data? This can't be undone.")) return;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await fetch(SUPA_URL + "/functions/v1/delete-account", { method: "POST", headers: { apikey: ANON, Authorization: "Bearer " + (session && session.access_token) } });
+      if (!res.ok) throw new Error("delete failed");
+      await sb.auth.signOut(); closeSub(); toast("Account deleted"); goTab("home");
+    } catch (_e) { alert("We couldn't delete your account automatically. Email support@bestbowl.app and we'll remove it right away."); }
+  }
+  async function saveAccount() {
+    const name = $("#ac-name").value.trim(); const btn = $("#ac-save"); busy(btn, true);
+    const r = await updateProfile({ full_name: name }); busy(btn, false);
+    const ok = $("#ac-ok"); if (r && r.error) { ok.textContent = "Couldn't save. Try again."; ok.style.color = "var(--red)"; } else { ok.textContent = "Saved ✓"; ok.style.color = ""; refreshAuthUI(); }
+    ok.classList.add("show");
+  }
+  async function savePet() {
+    const pet = state.editPet || "dog"; const btn = $("#pet-save"); busy(btn, true);
+    const r = await updateProfile({ pet_type: pet }); busy(btn, false);
+    const ok = $("#pet-ok"); ok.textContent = (r && r.error) ? "Couldn't save." : "Saved ✓"; ok.classList.add("show");
+    if (!(r && r.error)) refreshAuthUI();
+  }
+  async function saveNewPw() {
+    const pw = $("#cp-pw").value; const err = $("#cp-err"), ok = $("#cp-ok");
+    err.classList.remove("show"); ok.classList.remove("show");
+    if (pw.length < 8) { err.textContent = "At least 8 characters."; err.classList.add("show"); return; }
+    const btn = $("#cp-save"); busy(btn, true); const r = await sb.auth.updateUser({ password: pw }); busy(btn, false);
+    if (r.error) { err.textContent = prettyAuthErr(r.error); err.classList.add("show"); return; }
+    ok.textContent = "Password updated ✓"; ok.classList.add("show"); $("#cp-pw").value = "";
+  }
+
+  async function initAuth() {
+    renderProfileHeader();
+    if (!sb) return;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      state.user = session ? session.user : null;
+      await loadProfile();
+      refreshAuthUI();
+      sb.auth.onAuthStateChange(async (event, sess) => {
+        state.user = sess ? sess.user : null;
+        await loadProfile();
+        refreshAuthUI();
+        if (event === "PASSWORD_RECOVERY") openAuth("reset");
+      });
+    } catch (_e) { /* offline / blocked — app still works as guest */ }
   }
 
   // ---------- navigation ----------
@@ -820,7 +1234,7 @@
     const brandEl = e.target.closest("[data-brand]");
     if (brandEl) { e.stopPropagation(); toggleBrand(brandEl.dataset.brand); return; }
     if (e.target.closest("#abSave")) { if (state.currentProduct) { toggleSave(state.currentProduct); renderProduct(state.currentProduct); } return; }
-    if (e.target.closest("#abAlert")) { if (state.currentProduct) alert("Price alert set for " + state.currentProduct.name); return; }
+    if (e.target.closest("#abAlert")) { if (!state.user) { openAuth("login"); } else if (state.currentProduct) { toast("Price alert set for " + state.currentProduct.name.slice(0, 28)); } return; }
     const item = e.target.closest("[data-upc]");
     if (item && !e.target.closest(".unsave")) { showProduct(item.dataset.upc); return; }
     const mi = e.target.closest("[data-act]");
@@ -868,6 +1282,75 @@
   $("#howClose").addEventListener("click", () => howScrim.classList.remove("open"));
   howScrim.addEventListener("click", (e) => { if (e.target === howScrim) howScrim.classList.remove("open"); });
 
+  // ---------- auth + settings wiring ----------
+  $("#authClose").addEventListener("click", closeAuth);
+  $("#subBack").addEventListener("click", closeSub);
+  $("#profHead").addEventListener("click", () => { if (!state.user) openAuth("login"); });
+
+  // delegated clicks for auth/settings controls
+  document.addEventListener("click", (e) => {
+    const go = e.target.closest("[data-go]"); if (go) { showAuthView(go.dataset.go); return; }
+    const au = e.target.closest("[data-auth]"); if (au) { openAuth(au.dataset.auth); return; }
+    const eye = e.target.closest("[data-eye]"); if (eye) { const inp = $("#" + eye.dataset.eye); if (inp) inp.type = inp.type === "password" ? "text" : "password"; return; }
+    const sup = e.target.closest("#su-pet [data-pet]"); if (sup) { state.suPet = sup.dataset.pet; sup.parentElement.querySelectorAll("[data-pet]").forEach((b) => b.classList.toggle("on", b === sup)); return; }
+    const pep = e.target.closest("#pet-seg [data-pet]"); if (pep) { state.editPet = pep.dataset.pet; pep.parentElement.querySelectorAll("[data-pet]").forEach((b) => b.classList.toggle("on", b === pep)); return; }
+    if (e.target.closest("#ac-save")) { saveAccount(); return; }
+    if (e.target.closest("#pet-save")) { savePet(); return; }
+    if (e.target.closest("#cp-save")) { saveNewPw(); return; }
+    const sub = e.target.closest("[data-sub]"); if (sub) { handleSub(sub.dataset.sub); return; }
+  });
+
+  // notification toggles save immediately
+  document.addEventListener("change", async (e) => {
+    const tg = e.target.closest("[data-toggle]"); if (!tg) return;
+    const r = await updateProfile({ [tg.dataset.toggle]: tg.checked });
+    if (r && r.error) { tg.checked = !tg.checked; toast("Couldn't save — try again"); } else { toast("Saved"); }
+  });
+
+  // auth form submissions
+  $("#view-login").addEventListener("submit", async (e) => {
+    e.preventDefault(); clearAuthMsg();
+    const email = $("#li-email").value.trim(), pw = $("#li-pw").value;
+    if (!email || !pw) { showAuthErr("Enter your email and password."); return; }
+    const btn = $("#li-submit"); busy(btn, true);
+    const { error } = await sb.auth.signInWithPassword({ email, password: pw });
+    busy(btn, false);
+    if (error) { showAuthErr(prettyAuthErr(error)); return; }
+    closeAuth(); toast("Signed in 🎉");
+  });
+  $("#view-signup").addEventListener("submit", async (e) => {
+    e.preventDefault(); clearAuthMsg();
+    const name = $("#su-name").value.trim(), email = $("#su-email").value.trim(), pw = $("#su-pw").value;
+    const heard = $("#su-heard").value, mkt = $("#su-mkt").checked;
+    if (!name) { showAuthErr("What should we call you?"); return; }
+    if (!email) { showAuthErr("Enter your email."); return; }
+    if (pw.length < 8) { showAuthErr("Password must be at least 8 characters."); return; }
+    const btn = $("#su-submit"); busy(btn, true);
+    const { data, error } = await sb.auth.signUp({ email, password: pw, options: { emailRedirectTo: location.origin, data: { full_name: name, pet_type: state.suPet, how_heard: heard, marketing_opt_in: mkt } } });
+    busy(btn, false);
+    if (error) { showAuthErr(prettyAuthErr(error)); return; }
+    if (data.session) { closeAuth(); toast("Welcome to BestBowl 🐾"); }
+    else { $("#sentH").textContent = "Confirm your email"; $("#sentP").textContent = "We sent a confirmation link to " + email + ". Tap it to activate your account."; showAuthView("sent"); }
+  });
+  $("#view-forgot").addEventListener("submit", async (e) => {
+    e.preventDefault(); clearAuthMsg();
+    const email = $("#fp-email").value.trim(); if (!email) { showAuthErr("Enter your email."); return; }
+    const btn = $("#fp-submit"); busy(btn, true);
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin });
+    busy(btn, false);
+    if (error) { showAuthErr(prettyAuthErr(error)); return; }
+    $("#sentH").textContent = "Check your email"; $("#sentP").textContent = "If an account exists for " + email + ", we've sent a password-reset link."; showAuthView("sent");
+  });
+  $("#view-reset").addEventListener("submit", async (e) => {
+    e.preventDefault(); clearAuthMsg();
+    const pw = $("#rp-pw").value; if (pw.length < 8) { showAuthErr("Password must be at least 8 characters."); return; }
+    const btn = $("#rp-submit"); busy(btn, true);
+    const { error } = await sb.auth.updateUser({ password: pw });
+    busy(btn, false);
+    if (error) { showAuthErr(prettyAuthErr(error)); return; }
+    closeAuth(); toast("Password updated ✅");
+  });
+
   (function () {
     const splash = $("#splash");
     if (sessionStorage.getItem("bb_splash_shown")) { splash.style.display = "none"; return; }
@@ -878,6 +1361,7 @@
   history.replaceState({ screen: "home" }, "");
   setScreen("home");
   loadHome();
+  initAuth();
 </script>
 </body>
 </html>
