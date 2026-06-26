@@ -33,6 +33,57 @@ const CATEGORIES = [
   { pet: 'cat', foodType: 'treat', url: 'https://www.amazon.com/Best-Sellers-Pet-Supplies-Cat-Treats/zgbs/pet-supplies/2975309011' },
 ];
 
+// Chewy + Walmart category searches (one Rainforest credit each, 8 total).
+// NOTE: Rainforest is an Amazon-focused API; non-Amazon `url`s may be rejected —
+// the per-search error logging makes that obvious when the phase runs.
+const STORE_SEARCHES = [
+  { store: 'chewy', url: 'https://www.chewy.com/s?query=dry+dog+food' },
+  { store: 'chewy', url: 'https://www.chewy.com/s?query=wet+dog+food' },
+  { store: 'chewy', url: 'https://www.chewy.com/s?query=dry+cat+food' },
+  { store: 'chewy', url: 'https://www.chewy.com/s?query=cat+treats' },
+  { store: 'chewy', url: 'https://www.chewy.com/s?query=dog+treats' },
+  { store: 'walmart', url: 'https://www.walmart.com/search?q=dry+dog+food' },
+  { store: 'walmart', url: 'https://www.walmart.com/search?q=dry+cat+food' },
+  { store: 'walmart', url: 'https://www.walmart.com/search?q=dog+treats' },
+];
+
+// --- fuzzy product matching (same approach as the OPFF importer) -------------
+// Tokens we ignore when scoring name overlap so generic words don't inflate it.
+const STOP = new Set([
+  'grain', 'free', 'adult', 'puppy', 'kitten', 'senior', 'dry', 'wet', 'food',
+  'formula', 'recipe', 'with', 'and', 'the', 'for', 'dog', 'dogs', 'cat', 'cats',
+  'natural', 'health', 'complete', 'nutrition', 'lb', 'lbs', 'oz', 'pet', 'count',
+  'pack', 'ct', 'bag', 'can', 'cans', 'pouch', 'tub',
+]);
+const normName = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const nameTokens = (s) => normName(s).split(' ').filter((t) => t && !STOP.has(t));
+function jaccard(a, b) {
+  if (!a.length || !b.length) return 0;
+  const setB = new Set(b);
+  const inter = a.filter((t) => setB.has(t)).length;
+  return inter / new Set([...a, ...b]).size;
+}
+// Fuzzy brand agreement — substring either way, or >=0.5 token Jaccard.
+function brandMatches(brandA, brandB) {
+  const a = normName(brandA), b = normName(brandB);
+  if (!a || !b) return false;
+  if (a.includes(b) || b.includes(a)) return true;
+  return jaccard(nameTokens(a), nameTokens(b)) >= 0.5;
+}
+// Best product for a store result: name-token Jaccard >= 0.5, brand not contradicting.
+function bestMatch(title, products) {
+  const rb = brandOf(title);
+  const tks = nameTokens(title);
+  let best = null, bestScore = 0;
+  for (const p of products) {
+    const score = jaccard(tks, nameTokens(p.name));
+    if (score < 0.5) continue;
+    if (rb && p.brand && !brandMatches(p.brand, rb)) continue; // brand guard
+    if (score > bestScore) { bestScore = score; best = p; }
+  }
+  return best ? { product: best, score: bestScore } : null;
+}
+
 // Known brands (longest/most-specific first) for tidy brand extraction from titles.
 const KNOWN_BRANDS = [
   'Purina Pro Plan', 'Purina ONE', 'Taste of the Wild', "Hill's Science Diet", "Hill's",
@@ -214,10 +265,102 @@ async function seed(opts = {}) {
   return { creditsUsed, categories: perCat, upserted, skipped, errors: errors.length, items };
 }
 
+// --- Phase 2: Chewy + Walmart prices via Rainforest `type=search` -----------
+async function fetchSearch(apiKey, url, log) {
+  const params = new URLSearchParams({ api_key: apiKey, type: 'search', url });
+  const reqUrl = `https://api.rainforestapi.com/request?${params.toString()}`;
+  const redacted = reqUrl.replace(encodeURIComponent(apiKey), 'REDACTED').replace(apiKey, 'REDACTED');
+  if (log) log(`[req] GET ${redacted}`);
+
+  const res = await fetch(reqUrl);
+  const text = await res.text();
+  if (!res.ok) {
+    const snippet = text.slice(0, 600);
+    if (log) log(`[err] Rainforest HTTP ${res.status} body: ${snippet}`);
+    throw new Error(`Rainforest HTTP ${res.status}: ${snippet}`);
+  }
+  let body;
+  try { body = JSON.parse(text); }
+  catch (_e) { if (log) log(`[err] Rainforest returned non-JSON: ${text.slice(0, 300)}`); throw new Error('Rainforest returned non-JSON response'); }
+  const list = body.search_results || [];
+  if (log) {
+    log(`[res] ${res.status} OK — ${list.length} search results`);
+    if (list[0]) log(`[shape] first: title=${JSON.stringify(String(list[0].title || '').slice(0, 40))} price=${JSON.stringify(list[0].price)} link=${JSON.stringify(list[0].link || list[0].url)}`);
+  }
+  return list;
+}
+
+/**
+ * Phase 2 — pull Chewy + Walmart category searches and attach their prices to
+ * products we already have, matched by fuzzy product-name / brand similarity.
+ * 8 searches = 8 Rainforest credits. Returns a summary; emits progress via log.
+ */
+async function seedStores(opts = {}) {
+  const cfg = {
+    apiKey: opts.apiKey || process.env.RAINFOREST_API_KEY,
+    supabaseUrl: opts.supabaseUrl || process.env.SUPABASE_URL,
+    supabaseKey: opts.supabaseKey || process.env.SUPABASE_SERVICE_ROLE_KEY,
+    log: opts.log || ((m) => console.log(m)),
+  };
+  if (!cfg.supabaseUrl || !cfg.supabaseKey) throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+  if (!cfg.apiKey) throw new Error('Missing RAINFOREST_API_KEY');
+
+  const supabase = createClient(cfg.supabaseUrl, cfg.supabaseKey, { auth: { persistSession: false } });
+  cfg.log(`BestBowl store-price seed — Chewy + Walmart searches, ${STORE_SEARCHES.length} credits total`);
+
+  const { data: products, error: pErr } = await supabase.from('products').select('upc,name,brand');
+  if (pErr) throw pErr;
+  cfg.log(`[stores] ${products.length} existing products loaded for matching`);
+
+  let creditsUsed = 0, matched = 0, missed = 0;
+  const errors = [];
+  const perStore = {};
+
+  // Fetch all 8 searches in parallel so the whole phase fits in one request.
+  const settled = await Promise.all(STORE_SEARCHES.map(async (s) => {
+    try { return { s, results: await fetchSearch(cfg.apiKey, s.url, cfg.log) }; }
+    catch (err) { errors.push({ url: s.url, message: err.message }); cfg.log(`[ERR] ${s.store} search ${s.url}: ${err.message}`); return { s, results: null }; }
+  }));
+
+  for (const { s, results } of settled) {
+    perStore[s.store] = perStore[s.store] || { matched: 0, missed: 0 };
+    if (!results) continue;
+    creditsUsed += 1;
+    cfg.log(`[${s.store}] ${results.length} results for ${s.url}`);
+
+    for (const r of results) {
+      const name = r.title;
+      if (!name) continue;
+      const price = r.price ? num(r.price.value ?? r.price.raw) : null;
+      const url = r.link || r.url || null;
+      const m = bestMatch(name, products);
+      if (!m) { missed += 1; perStore[s.store].missed += 1; cfg.log(`[${s.store}] miss  "${String(name).slice(0, 60)}"`); continue; }
+      try {
+        const { error } = await supabase.from('prices').upsert({
+          upc: m.product.upc, store: s.store, price,
+          autoship_price: null, subscribe_save_price: null,
+          in_stock: true, affiliate_url: url, updated_at: new Date().toISOString(),
+        }, { onConflict: 'upc,store' });
+        if (error) throw error;
+        matched += 1; perStore[s.store].matched += 1;
+        cfg.log(`[${s.store}] MATCH "${String(name).slice(0, 46)}" -> ${String(m.product.name).slice(0, 38)}  $${price ?? '—'}  (j=${m.score.toFixed(2)})`);
+      } catch (err) {
+        errors.push({ name, message: err.message });
+        cfg.log(`[ERR] upsert ${s.store} ${m.product.upc}: ${err.message}`);
+      }
+    }
+  }
+
+  cfg.log(`Done — ${creditsUsed} credit(s) used, ${matched} matched, ${missed} missed, ${errors.length} errors`);
+  return { creditsUsed, matched, missed, perStore, errors: errors.length };
+}
+
 if (require.main === module) {
-  seed()
-    .then((r) => { if (r.errors > 0) process.exit(1); })
+  const phase = process.argv[2]; // optional: "stores" or "amazon"
+  const run = phase === 'stores' ? seedStores() : phase === 'amazon' ? seed() : seed().then((a) => seedStores().then((b) => ({ amazon: a, stores: b })));
+  Promise.resolve(run)
+    .then((r) => { if (r && r.errors > 0) process.exit(1); })
     .catch((err) => { console.error('[FATAL]', err.message); process.exit(1); });
 }
 
-module.exports = { seed, CATEGORIES };
+module.exports = { seed, seedStores, CATEGORIES, STORE_SEARCHES };
