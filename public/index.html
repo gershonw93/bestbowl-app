@@ -368,6 +368,26 @@
   .legal-body{font-size:13.5px;color:var(--body);line-height:1.6;font-weight:500;}
   .legal-body h4{font-size:15px;font-weight:800;margin:18px 0 6px;color:var(--ink);}
   .legal-body p{margin:0 0 10px;}
+  /* ---------- "Recommended for <pet>" home shelf ---------- */
+  .rec-sec{margin:2px 0 24px;}
+  .rec-head{margin:0 2px 13px;}
+  .rec-t{font-size:19px;font-weight:800;letter-spacing:-.3px;color:var(--ink);line-height:1.15;}
+  .rec-s{font-size:12.5px;color:var(--sec);font-weight:600;margin-top:3px;}
+  .rec-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
+  .rec-tile{background:#fff;border-radius:22px;padding:10px;box-shadow:0 5px 0 rgba(8,80,65,.07);cursor:pointer;transition:transform .08s;}
+  .rec-tile:active{transform:translateY(1px);}
+  .rec-img{position:relative;width:100%;aspect-ratio:1/1;border-radius:16px;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+  .rec-img.dog{background:var(--dogbg);} .rec-img.cat{background:var(--catbg);}
+  .rec-ico{display:flex;color:var(--green);opacity:.5;}
+  .rec-img.cat .rec-ico{color:var(--amber);}
+  .rec-ico svg{width:56px;height:56px;}
+  .rec-img-i{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff;}
+  .rec-badge{position:absolute;top:8px;right:8px;min-width:30px;height:30px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;box-shadow:0 3px 0 rgba(0,0,0,.10);transform:rotate(4deg);padding:0 6px;}
+  .rec-name{font-size:13px;font-weight:700;line-height:1.2;margin:11px 4px 0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:31px;}
+  .rec-price{font-size:12.5px;color:var(--sec);font-weight:600;margin:5px 4px 2px;}
+  .rec-price b{color:var(--ink);font-weight:800;}
+  .rec-more{font-size:12px;font-weight:800;color:var(--sec);text-transform:uppercase;letter-spacing:.5px;margin:0 2px 12px;}
+  @media (min-width:1000px){ .rec-grid{grid-template-columns:repeat(4,1fr);} }
 </style>
 </head>
 <body>
@@ -739,7 +759,39 @@
       return;
     }
     $("#homeCount").textContent = `${results.length} great match${results.length === 1 ? "" : "es"}`;
-    $("#homeList").innerHTML = bar + results.map(homeCard).join("");
+    const rec = renderRecommended();
+    $("#homeList").innerHTML = bar + rec + (rec ? `<div class="rec-more">Browse all</div>` : "") + results.map(homeCard).join("");
+  }
+
+  // Top-scoring foods for the active pet's species — a personalized hero shelf.
+  function recommendedFor() {
+    const ap = activePet(); if (!ap) return [];
+    const sp = ap.species === "cat" ? "cat" : "dog";
+    const pool = (state.products && state.products.length ? state.products : state.filtered) || [];
+    return pool.filter((p) => petOf(p) === sp)
+      .slice()
+      .sort((a, b) => Number(b.quality_score || 0) - Number(a.quality_score || 0))
+      .slice(0, 4);
+  }
+  function renderRecommended() {
+    if (state.searchQuery || state.brandFilter) return "";   // only on the default home view
+    const ap = activePet(); if (!ap) return "";
+    const recs = recommendedFor(); if (recs.length < 2) return "";
+    const who = ap.nickname || ap.name || cap(ap.species || "dog");
+    const emoji = ap.species === "cat" ? "🐱" : "🐶";
+    const tiles = recs.map((p) => {
+      const s = Number(p.quality_score || 0), c = scoreColors(s), pet = petOf(p), u = photoUrl(p);
+      const img = u ? `<img class="rec-img-i" src="${esc(u)}" alt="" loading="lazy" onerror="this.remove()" />` : "";
+      return `<div class="rec-tile" data-upc="${esc(p.upc)}">
+          <div class="rec-img ${pet}"><div class="rec-ico">${pet === "cat" ? CAT : DOG}</div>${img}<div class="rec-badge display" style="background:${c.bg};color:${c.fg}">${s.toFixed(1)}</div></div>
+          <div class="rec-name">${esc(p.name)}</div>
+          <div class="rec-price">from <b>${money(p.best_price)}</b></div>
+        </div>`;
+    }).join("");
+    return `<div class="rec-sec">
+        <div class="rec-head"><div class="rec-t display">Recommended for ${esc(who)} ${emoji}</div><div class="rec-s">Top-scoring ${ap.species === "cat" ? "cat" : "dog"} foods, picked for ${esc(who)}</div></div>
+        <div class="rec-grid">${tiles}</div>
+      </div>`;
   }
 
   function homeCard(p) {
@@ -1209,7 +1261,10 @@
     await loadFavorites();
     refreshAuthUI();
     if (state.activeTab === "saved") renderSaved();
+    if (state.activeTab === "home" && state.filtered.length) renderHome(applyFilters(state.filtered)); // refresh "Recommended for <pet>"
   }
+  // Re-render the home shelf once pets are known (loadHome may finish before auth).
+  function refreshHomeRecs() { if (state.activeTab === "home" && state.filtered.length) renderHome(applyFilters(state.filtered)); }
   async function deletePet(id) {
     if (!confirm("Remove this pet and its saved favorites? This can't be undone.")) return;
     await sb.from("pets").delete().eq("id", id);
@@ -1307,6 +1362,7 @@
       await loadUserData();
       refreshAuthUI();
       if (state.activeTab === "saved") renderSaved();
+      refreshHomeRecs();
       // Gate first-time / signed-out visitors (unless using a ?preview=1 link).
       if (!state.user && !isPreview()) openAuthGate();
       sb.auth.onAuthStateChange(async (event, sess) => {
@@ -1314,6 +1370,7 @@
         await loadUserData();
         refreshAuthUI();
         if (state.activeTab === "saved") renderSaved();
+        refreshHomeRecs();
         if (event === "PASSWORD_RECOVERY") openAuth("reset");
         if (state.user && state.gate) closeAuthGate();   // signed in → drop the wall
         else if (!state.user && !state.gate && !isPreview()) openAuthGate(); // signed out → re-gate
