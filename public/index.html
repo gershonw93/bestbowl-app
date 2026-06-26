@@ -288,6 +288,9 @@
   /* ---------- auth + settings sheets ---------- */
   .sheet{position:fixed;top:0;left:0;right:0;bottom:auto;margin-inline:auto;max-width:640px;width:100%;height:100vh;height:100dvh;background:var(--bg);z-index:60;overflow:hidden;display:flex;flex-direction:column;transform:translateX(100%);visibility:hidden;transition:transform .3s cubic-bezier(.2,.7,.2,1),visibility 0s .3s;will-change:transform;}
   .sheet.open{transform:translateX(0);visibility:visible;transition:transform .3s cubic-bezier(.2,.7,.2,1);}
+  /* first-run gate: no close button, and the title centers as a welcome */
+  #screen-auth.gate #authClose{display:none;}
+  #screen-auth.gate .sheet-hd .sh-title{margin-left:4px;}
   .sheet-hd{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:14px 14px 12px;background:#fff;border-bottom:1px solid var(--line);}
   .sheet-hd .sh-title{font-size:17px;font-weight:800;font-family:'Bricolage Grotesque',sans-serif;}
   .sheet-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:18px 16px 48px;}
@@ -618,7 +621,7 @@
     saved: JSON.parse(localStorage.getItem("savedProducts") || "[]"),
     activeTab: "home", petFilter: "all", foodFilter: "", sortBy: "value",
     searchQuery: "", dealFilter: "all", byUpc: {},
-    user: null, profile: null, authView: "login", suPet: "dog",
+    user: null, profile: null, authView: "login", suPet: "dog", gate: false,
   };
 
   const $ = (s) => document.querySelector(s);
@@ -1064,7 +1067,24 @@
     document.body.classList.add("no-nav");
     showAuthView(view || "login");
   }
-  function closeAuth() { $("#screen-auth").classList.remove("open"); document.body.classList.remove("no-nav"); }
+  function closeAuth() {
+    // While the first-run gate is up, the sheet can't be dismissed until signed in.
+    if (state.gate && !state.user) return;
+    $("#screen-auth").classList.remove("open"); document.body.classList.remove("no-nav");
+  }
+  // First-run wall: force account creation before the app can be used.
+  function isPreview() { return /[?&](preview|guest)=1\b/.test(location.search) || localStorage.getItem("bb_preview") === "1"; }
+  function openAuthGate() {
+    if (!sb) return;                 // auth library failed to load → don't lock anyone out
+    state.gate = true;
+    $("#screen-auth").classList.add("gate");
+    openAuth("signup");
+  }
+  function closeAuthGate() {
+    state.gate = false;
+    $("#screen-auth").classList.remove("gate");
+    closeAuth();
+  }
   function showAuthView(v) {
     state.authView = v;
     document.querySelectorAll("#screen-auth .auth-view").forEach((el) => el.classList.remove("on"));
@@ -1141,11 +1161,15 @@
       state.user = session ? session.user : null;
       await loadProfile();
       refreshAuthUI();
+      // Gate first-time / signed-out visitors (unless using a ?preview=1 link).
+      if (!state.user && !isPreview()) openAuthGate();
       sb.auth.onAuthStateChange(async (event, sess) => {
         state.user = sess ? sess.user : null;
         await loadProfile();
         refreshAuthUI();
         if (event === "PASSWORD_RECOVERY") openAuth("reset");
+        if (state.user && state.gate) closeAuthGate();   // signed in → drop the wall
+        else if (!state.user && !state.gate && !isPreview()) openAuthGate(); // signed out → re-gate
       });
     } catch (_e) { /* offline / blocked — app still works as guest */ }
   }
