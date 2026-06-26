@@ -122,6 +122,8 @@
   .iconbtn{width:40px;height:40px;border:none;background:transparent;display:flex;align-items:center;justify-content:center;color:#fff;}
   .hd-title{font-size:21px;font-weight:800;color:#fff;}
   .hd-title .o{color:var(--cream);}
+  .greet{color:#fff;font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:19px;letter-spacing:-.3px;line-height:1.15;margin:12px 2px 0;}
+  .greet:empty{display:none;}
   .search{background:#fff;border-radius:16px;padding:13px 15px;display:flex;align-items:center;gap:11px;margin-top:14px;box-shadow:0 4px 0 rgba(8,80,65,.10);}
   .search svg{color:var(--mut);flex:0 0 auto;}
   .search input{border:none;outline:none;width:100%;font-size:15px;color:var(--ink);font-family:inherit;font-weight:500;background:transparent;}
@@ -438,6 +440,7 @@
         <span class="logo"><img src="/assets/BestBowl-lockup-light.svg" alt="BestBowl" /></span>
         <button class="iconbtn" id="menuBtn" aria-label="Menu"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
       </div>
+      <div class="greet" id="homeGreet"></div>
       <div class="search">
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input id="q" type="search" placeholder="Find the good stuff..." autocomplete="off" />
@@ -1139,7 +1142,29 @@
     if (!r.error) state.profile = Object.assign({}, state.profile, patch);
     return r;
   }
-  function refreshAuthUI() { updateAvatars(); renderProfileHeader(); if (state.activeTab === "profile") renderProfile(); }
+  function renderGreeting() {
+    const el = $("#homeGreet"); if (!el) return;
+    const p = state.profile || {};
+    const pet = p.pet_nickname || p.pet_name;
+    if (pet) {
+      const paw = p.pet_type === "cat" ? "🐱" : "🐶";
+      const lines = [
+        `What does ${pet} wanna eat? ${paw}`,
+        `Let's find ${pet} something tasty 🍖`,
+        `Hungry, ${pet}? Let's compare bowls 🥣`,
+        `Shopping for ${pet} today ${paw}`,
+        `Best bowl for ${pet}, best price 💸`,
+      ];
+      // stable pick per pet name so it doesn't flicker between refreshes
+      el.textContent = lines[pet.length % lines.length];
+    } else if (state.user) {
+      const first = displayName().split(/\s+/)[0];
+      el.textContent = first && first !== "Guest" ? `Welcome back, ${first} 👋` : "What's in the bowl today? 🐾";
+    } else {
+      el.textContent = "Find the best bowl for less 🐾";
+    }
+  }
+  function refreshAuthUI() { updateAvatars(); renderProfileHeader(); renderGreeting(); if (state.activeTab === "profile") renderProfile(); }
 
   async function doSignOut() { if (!sb) return; await sb.auth.signOut(); closeSub(); toast("Signed out"); }
   async function doDelete() {
@@ -1183,7 +1208,7 @@
 
   async function initAuth() {
     renderProfileHeader();
-    if (!sb) return;
+    if (!sb) { renderGreeting(); return; }
     try {
       const { data: { session } } = await sb.auth.getSession();
       state.user = session ? session.user : null;
