@@ -352,6 +352,10 @@
   .switch .track::before{content:"";position:absolute;width:22px;height:22px;border-radius:50%;background:#fff;top:3px;left:3px;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:transform .2s;}
   .switch input:checked + .track{background:var(--green);}
   .switch input:checked + .track::before{transform:translateX(18px);}
+  .active-tag{color:var(--green);font-size:10.5px;font-weight:800;letter-spacing:.4px;background:var(--mint);padding:2px 7px;border-radius:999px;margin-left:4px;vertical-align:middle;}
+  .petchips{display:flex;gap:8px;overflow-x:auto;padding:0 2px 14px;-webkit-overflow-scrolling:touch;}
+  .petchip{flex:0 0 auto;background:#fff;border:1.5px solid var(--line);border-radius:999px;padding:8px 14px;font-size:13px;font-weight:700;color:var(--sec);cursor:pointer;font-family:inherit;box-shadow:0 3px 0 rgba(8,80,65,.05);}
+  .petchip.on{background:var(--green);color:#fff;border-color:var(--green);box-shadow:0 3px 0 var(--green-sh);}
   .acct-head{display:flex;align-items:center;gap:14px;background:#fff;border-radius:20px;padding:16px;box-shadow:0 4px 0 rgba(8,80,65,.06);margin-bottom:22px;}
   .acct-av{width:54px;height:54px;border-radius:18px;background:var(--orange);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:19px;flex:0 0 auto;}
   .acct-nm{font-size:16px;font-weight:800;}
@@ -621,10 +625,12 @@
 
   const state = {
     products: [], filtered: [], currentProduct: null,
-    saved: JSON.parse(localStorage.getItem("savedProducts") || "[]"),
+    saved: [],                       // favorites for the active pet (from DB)
     activeTab: "home", petFilter: "all", foodFilter: "", sortBy: "value",
     searchQuery: "", dealFilter: "all", byUpc: {},
     user: null, profile: null, authView: "login", suPet: "dog", gate: false,
+    pets: [], activePetId: localStorage.getItem("bb_active_pet") || null,
+    editPetId: null, editPet: "dog", subKey: null,
   };
 
   const $ = (s) => document.querySelector(s);
@@ -865,12 +871,20 @@
   // ---------- saved ----------
   function renderSaved() {
     const arr = state.saved;
+    const who = activePet();
+    // pet switcher (only when there's more than one pet)
+    const chips = state.pets.length > 1
+      ? `<div class="petchips">${state.pets.map((p) => `<button class="petchip ${p.id === state.activePetId ? "on" : ""}" data-petchip="${p.id}">${p.species === "cat" ? "🐱" : "🐶"} ${esc(p.name || "Pet")}</button>`).join("")}</div>`
+      : "";
     if (!arr.length) {
-      $("#savedList").innerHTML = `<div class="state"><div class="ei">${HEART_O("#bbb", 44)}</div><div class="t1">No saved products yet</div><div class="t2">Tap the heart on any product to save it</div></div>`;
+      const msg = !state.pets.length
+        ? "Add a pet first, then tap the heart on any food to save it for them."
+        : `No favorites yet${who && who.name ? " for " + esc(who.name) : ""}. Tap the heart on any food to save it here.`;
+      $("#savedList").innerHTML = chips + `<div class="state"><div class="ei">${HEART_O("#bbb", 44)}</div><div class="t1">Nothing saved yet</div><div class="t2">${msg}</div></div>`;
       return;
     }
-    $("#savedList").innerHTML =
-      `<div class="matches display" style="padding:0 4px 12px">${arr.length} saved product${arr.length === 1 ? "" : "s"}</div>` +
+    $("#savedList").innerHTML = chips +
+      `<div class="matches display" style="padding:0 4px 12px">${arr.length} saved${who && who.name ? " for " + esc(who.name) : ""}</div>` +
       arr.map((p) => `
         <div class="card" data-upc="${esc(p.upc)}">
           ${thumb(p)}
@@ -878,10 +892,18 @@
           <button class="unsave" data-unsave="${esc(p.upc)}">${HEART_F("currentColor", 24)}</button>
         </div>`).join("");
   }
+  // Favorites are scoped to the active pet and stored in the DB (pet_favorites).
   function toggleSave(p) {
+    if (!state.user) { openAuth("login"); return; }
+    if (!state.activePetId) { toast("Add a pet first 🐾"); openSub("pets"); return; }
     const i = state.saved.findIndex((x) => x.upc === p.upc);
-    if (i >= 0) state.saved.splice(i, 1); else state.saved.push(p);
-    localStorage.setItem("savedProducts", JSON.stringify(state.saved));
+    if (i >= 0) {
+      state.saved.splice(i, 1); // optimistic
+      sb.from("pet_favorites").delete().eq("pet_id", state.activePetId).eq("upc", p.upc).then(() => {});
+    } else {
+      state.saved.push(p);
+      sb.from("pet_favorites").upsert({ user_id: state.user.id, pet_id: state.activePetId, upc: p.upc, product: p }, { onConflict: "pet_id,upc" }).then(() => {});
+    }
   }
 
   // ---------- icons ----------
@@ -905,11 +927,14 @@
     return (state.profile && state.profile.full_name) ||
       (state.user && state.user.email ? state.user.email.split("@")[0] : "Guest");
   }
+  function activePet() { return state.pets.find((p) => p.id === state.activePetId) || state.pets[0] || null; }
   function petLabel() {
-    const p = state.profile || {};
-    if (p.pet_name) return p.pet_name + (p.pet_breed ? " · " + p.pet_breed : "");
-    const t = p.pet_type;
-    return t === "both" ? "Dog & Cat" : t === "cat" ? "Cat" : t === "dog" ? "Dog" : "Add your pet";
+    const p = activePet();
+    if (p && (p.name || p.breed)) {
+      const extra = state.pets.length > 1 ? `  +${state.pets.length - 1} more` : "";
+      return (p.name || "Your pet") + (p.breed ? " · " + p.breed : "") + extra;
+    }
+    return state.pets.length ? "Tap to manage" : "Add your pet";
   }
   function updateAvatars() {
     const dav = $("#davatar"); if (dav) dav.textContent = state.user ? initialsOf() : "GW";
@@ -920,7 +945,8 @@
     if (state.user) {
       if (av) av.textContent = initialsOf();
       nm.textContent = displayName();
-      const pet = state.profile && (state.profile.pet_nickname || state.profile.pet_name);
+      const ap = activePet();
+      const pet = ap && (ap.nickname || ap.name);
       sub.textContent = pet ? ("🐾 " + pet + "'s human") : (state.user.email || "");
     }
     else { if (av) av.textContent = "🐾"; nm.textContent = "Guest"; sub.textContent = "Sign in to save foods & set alerts"; }
@@ -969,7 +995,7 @@
     host.innerHTML =
       setGroup("Account", [
         setRow({ ic: "user", t: "Account", s: state.user.email, green: true, sub: "account" }),
-        setRow({ ic: "dog", t: "My pet", s: petLabel(), green: true, sub: "pets" }),
+        setRow({ ic: "dog", t: "My pets", s: petLabel(), green: true, sub: "pets" }),
       ]) +
       setGroup("Preferences", [
         setRow({ ic: "bell", t: "Notifications", s: "Alerts, deals & digest", green: true, sub: "notifications" }),
@@ -995,30 +1021,48 @@
       <button class="btn btn-ghost" data-sub="signout">Sign out</button>
       <button class="btn btn-danger" data-sub="delete" style="margin-top:10px;">Delete account</button>`;
   }
-  function renderPets() {
-    const p = state.profile || {};
-    const sp = p.pet_type === "cat" ? "cat" : "dog"; // a single pet — dog or cat
-    state.editPet = sp;
+  function renderPetsList() {
+    const rows = state.pets.map((p) => {
+      const emoji = p.species === "cat" ? "🐱" : "🐶";
+      const active = p.id === state.activePetId;
+      return `<div class="set-row tap" data-petedit="${p.id}">
+          <div class="sr-ic">${emoji}</div>
+          <div class="sr-mid"><div class="sr-t">${esc(p.name || "Unnamed pet")}${active ? ` <span class="active-tag">ACTIVE</span>` : ""}</div><div class="sr-s">${esc(p.breed || cap(p.species || "dog"))}</div></div>
+          <div class="chev">${CHEV}</div></div>`;
+    });
     return `
-      <p class="auth-p" style="text-align:left;margin:0 0 16px;">Tell us about your best friend so BestBowl feels personal — and we can tailor food picks to them.</p>
+      <p class="auth-p" style="text-align:left;margin:0 0 14px;">Your pets — each one keeps its own saved favorites. Tap a pet to edit, or add another.</p>
+      ${state.pets.length ? setGroup("", rows) : `<div class="set-card" style="padding:18px;text-align:center;color:var(--sec);font-weight:600;font-size:13.5px;margin-bottom:18px;">No pets yet — add your first below.</div>`}
+      <button class="btn btn-primary" data-petadd="1">+ Add a pet</button>`;
+  }
+  function renderPetForm() {
+    const p = state.editPetId ? (state.pets.find((x) => x.id === state.editPetId) || {}) : {};
+    const editing = !!state.editPetId;
+    state.editPet = p.species === "cat" ? "cat" : "dog";
+    const makeActive = editing && state.editPetId !== state.activePetId
+      ? `<button class="btn btn-ghost" data-petactive="${state.editPetId}" style="margin-top:12px;">Make active pet</button>` : "";
+    const remove = editing ? `<button class="btn btn-danger" data-petdel="${state.editPetId}" style="margin-top:10px;">Remove pet</button>` : "";
+    return `
       <div class="fld"><label>They're a…</label>
         <div class="seg" id="pet-seg">
-          <button type="button" data-pet="dog" class="${sp === "dog" ? "on" : ""}">🐶 Dog</button>
-          <button type="button" data-pet="cat" class="${sp === "cat" ? "on" : ""}">🐱 Cat</button>
+          <button type="button" data-pet="dog" class="${state.editPet === "dog" ? "on" : ""}">🐶 Dog</button>
+          <button type="button" data-pet="cat" class="${state.editPet === "cat" ? "on" : ""}">🐱 Cat</button>
         </div></div>
-      <div class="fld"><label>Pet's name</label><input type="text" id="pet-name" value="${esc(p.pet_name || "")}" placeholder="e.g. Bella" autocomplete="off"></div>
-      <div class="fld"><label>Nickname <span style="color:var(--mut);font-weight:600;">· optional</span></label><input type="text" id="pet-nick" value="${esc(p.pet_nickname || "")}" placeholder="e.g. Bell-Bell" autocomplete="off"></div>
-      <div class="fld"><label>Breed</label><input type="text" id="pet-breed" value="${esc(p.pet_breed || "")}" placeholder="e.g. Golden Retriever" list="breed-list" autocomplete="off"></div>
+      <div class="fld"><label>Pet's name</label><input type="text" id="pet-name" value="${esc(p.name || "")}" placeholder="e.g. Bella" autocomplete="off"></div>
+      <div class="fld"><label>Nickname <span style="color:var(--mut);font-weight:600;">· optional</span></label><input type="text" id="pet-nick" value="${esc(p.nickname || "")}" placeholder="e.g. Bell-Bell" autocomplete="off"></div>
+      <div class="fld"><label>Breed</label><input type="text" id="pet-breed" value="${esc(p.breed || "")}" placeholder="e.g. Golden Retriever" list="breed-list" autocomplete="off"></div>
       <div class="fld" style="display:flex;gap:12px;margin-bottom:8px;">
-        <div style="flex:1;"><label>Age</label><input type="text" id="pet-age" value="${esc(p.pet_age || "")}" placeholder="e.g. 3 yrs" autocomplete="off"></div>
-        <div style="flex:1;"><label>Weight</label><input type="text" id="pet-weight" value="${esc(p.pet_weight || "")}" placeholder="e.g. 45 lbs" autocomplete="off"></div>
+        <div style="flex:1;"><label>Age</label><input type="text" id="pet-age" value="${esc(p.age || "")}" placeholder="e.g. 3 yrs" autocomplete="off"></div>
+        <div style="flex:1;"><label>Weight</label><input type="text" id="pet-weight" value="${esc(p.weight || "")}" placeholder="e.g. 45 lbs" autocomplete="off"></div>
       </div>
       <datalist id="breed-list">
         <option>Labrador Retriever</option><option>Golden Retriever</option><option>French Bulldog</option><option>German Shepherd</option><option>Poodle</option><option>Bulldog</option><option>Beagle</option><option>Dachshund</option><option>Rottweiler</option><option>Yorkshire Terrier</option><option>Boxer</option><option>Shih Tzu</option><option>Chihuahua</option><option>Australian Shepherd</option><option>Border Collie</option><option>Cavalier King Charles Spaniel</option><option>Pomeranian</option><option>Siberian Husky</option><option>Great Dane</option><option>Mixed breed</option>
         <option>Domestic Shorthair</option><option>Domestic Longhair</option><option>Maine Coon</option><option>Ragdoll</option><option>Siamese</option><option>Persian</option><option>Bengal</option><option>British Shorthair</option><option>Sphynx</option><option>Tabby</option>
       </datalist>
-      <button class="btn btn-primary" id="pet-save" style="margin-top:10px;">Save pet</button>
-      <div class="auth-ok" id="pet-ok" style="margin-top:12px;"></div>`;
+      <button class="btn btn-primary" id="pet-save" style="margin-top:10px;">${editing ? "Save" : "Add pet"}</button>
+      <div class="auth-ok" id="pet-ok" style="margin-top:12px;"></div>
+      ${makeActive}
+      ${remove}`;
   }
   function renderNotifs() {
     const pr = state.profile || {};
@@ -1054,7 +1098,8 @@
   }
   const SUB_PAGES = {
     account: ["Account", renderAccount],
-    pets: ["My pet", renderPets],
+    pets: ["My pets", renderPetsList],
+    petedit: ["Pet", renderPetForm],
     notifications: ["Notifications", renderNotifs],
     changepw: ["Change password", renderChangePw],
     legal: ["Privacy & legal", renderLegal],
@@ -1062,7 +1107,8 @@
   };
   function openSub(key) {
     const page = SUB_PAGES[key]; if (!page) return;
-    $("#subTitle").textContent = page[0];
+    state.subKey = key;
+    $("#subTitle").textContent = key === "petedit" ? (state.editPetId ? "Edit pet" : "Add a pet") : page[0];
     $("#subBody").innerHTML = page[1]();
     $("#screen-sub").classList.add("open");
     document.body.classList.add("no-nav");
@@ -1136,6 +1182,42 @@
     try { const { data } = await sb.from("profiles").select("*").eq("id", state.user.id).maybeSingle(); state.profile = data || null; }
     catch (_e) { state.profile = null; }
   }
+  async function loadPets() {
+    if (!sb || !state.user) { state.pets = []; state.activePetId = null; return; }
+    try {
+      const { data } = await sb.from("pets").select("*").eq("user_id", state.user.id)
+        .order("is_primary", { ascending: false }).order("created_at", { ascending: true });
+      state.pets = data || [];
+    } catch (_e) { state.pets = []; }
+    if (!state.pets.find((p) => p.id === state.activePetId)) {
+      const primary = state.pets.find((p) => p.is_primary) || state.pets[0];
+      state.activePetId = primary ? primary.id : null;
+    }
+    if (state.activePetId) localStorage.setItem("bb_active_pet", state.activePetId);
+    else localStorage.removeItem("bb_active_pet");
+  }
+  async function loadFavorites() {
+    if (!sb || !state.user || !state.activePetId) { state.saved = []; return; }
+    try {
+      const { data } = await sb.from("pet_favorites").select("product,upc").eq("pet_id", state.activePetId);
+      state.saved = (data || []).map((r) => r.product || { upc: r.upc, name: r.upc });
+    } catch (_e) { state.saved = []; }
+  }
+  async function loadUserData() { await loadProfile(); await loadPets(); await loadFavorites(); }
+  async function setActivePet(id) {
+    state.activePetId = id; localStorage.setItem("bb_active_pet", id);
+    await loadFavorites();
+    refreshAuthUI();
+    if (state.activeTab === "saved") renderSaved();
+  }
+  async function deletePet(id) {
+    if (!confirm("Remove this pet and its saved favorites? This can't be undone.")) return;
+    await sb.from("pets").delete().eq("id", id);
+    if (state.activePetId === id) state.activePetId = null;
+    await loadPets(); await loadFavorites(); refreshAuthUI();
+    openSub("pets");
+    toast("Pet removed");
+  }
   async function updateProfile(patch) {
     if (!sb || !state.user) return { error: { message: "Not signed in" } };
     const r = await sb.from("profiles").update(patch).eq("id", state.user.id);
@@ -1144,10 +1226,10 @@
   }
   function renderGreeting() {
     const el = $("#homeGreet"); if (!el) return;
-    const p = state.profile || {};
-    const pet = p.pet_nickname || p.pet_name;
+    const ap = activePet() || {};
+    const pet = ap.nickname || ap.name;
     if (pet) {
-      const paw = p.pet_type === "cat" ? "🐱" : "🐶";
+      const paw = ap.species === "cat" ? "🐱" : "🐶";
       const lines = [
         `What does ${pet} wanna eat? ${paw}`,
         `Let's find ${pet} something tasty 🍖`,
@@ -1183,19 +1265,29 @@
     ok.classList.add("show");
   }
   async function savePet() {
+    if (!sb || !state.user) { openAuth("login"); return; }
     const val = (id) => { const el = $(id); return el ? el.value.trim() || null : null; };
-    const patch = {
-      pet_type: state.editPet || "dog",
-      pet_name: val("#pet-name"),
-      pet_nickname: val("#pet-nick"),
-      pet_breed: val("#pet-breed"),
-      pet_age: val("#pet-age"),
-      pet_weight: val("#pet-weight"),
+    const row = {
+      species: state.editPet || "dog",
+      name: val("#pet-name"), nickname: val("#pet-nick"), breed: val("#pet-breed"),
+      age: val("#pet-age"), weight: val("#pet-weight"),
     };
+    if (!row.name && !row.breed) { const ok = $("#pet-ok"); ok.textContent = "Give your pet a name first 🐾"; ok.style.color = "var(--red)"; ok.classList.add("show"); return; }
     const btn = $("#pet-save"); busy(btn, true);
-    const r = await updateProfile(patch); busy(btn, false);
-    const ok = $("#pet-ok"); ok.textContent = (r && r.error) ? "Couldn't save — try again." : "Saved ✓"; ok.classList.add("show");
-    if (!(r && r.error)) refreshAuthUI();
+    let res;
+    if (state.editPetId) {
+      res = await sb.from("pets").update(row).eq("id", state.editPetId);
+    } else {
+      row.user_id = state.user.id;
+      row.is_primary = state.pets.length === 0;
+      res = await sb.from("pets").insert(row).select("id").single();
+      if (!res.error && res.data && !state.activePetId) state.activePetId = res.data.id;
+    }
+    busy(btn, false);
+    if (res.error) { const ok = $("#pet-ok"); ok.textContent = "Couldn't save — try again."; ok.style.color = "var(--red)"; ok.classList.add("show"); return; }
+    await loadPets(); await loadFavorites(); refreshAuthUI();
+    toast(state.editPetId ? "Pet saved ✓" : "Pet added 🐾");
+    openSub("pets");
   }
   async function saveNewPw() {
     const pw = $("#cp-pw").value; const err = $("#cp-err"), ok = $("#cp-ok");
@@ -1212,14 +1304,16 @@
     try {
       const { data: { session } } = await sb.auth.getSession();
       state.user = session ? session.user : null;
-      await loadProfile();
+      await loadUserData();
       refreshAuthUI();
+      if (state.activeTab === "saved") renderSaved();
       // Gate first-time / signed-out visitors (unless using a ?preview=1 link).
       if (!state.user && !isPreview()) openAuthGate();
       sb.auth.onAuthStateChange(async (event, sess) => {
         state.user = sess ? sess.user : null;
-        await loadProfile();
+        await loadUserData();
         refreshAuthUI();
+        if (state.activeTab === "saved") renderSaved();
         if (event === "PASSWORD_RECOVERY") openAuth("reset");
         if (state.user && state.gate) closeAuthGate();   // signed in → drop the wall
         else if (!state.user && !state.gate && !isPreview()) openAuthGate(); // signed out → re-gate
@@ -1361,7 +1455,7 @@
 
   // ---------- auth + settings wiring ----------
   $("#authClose").addEventListener("click", closeAuth);
-  $("#subBack").addEventListener("click", closeSub);
+  $("#subBack").addEventListener("click", () => { if (state.subKey === "petedit") openSub("pets"); else closeSub(); });
   $("#profHead").addEventListener("click", () => { if (!state.user) openAuth("login"); });
 
   // delegated clicks for auth/settings controls
@@ -1374,6 +1468,11 @@
     if (e.target.closest("#ac-save")) { saveAccount(); return; }
     if (e.target.closest("#pet-save")) { savePet(); return; }
     if (e.target.closest("#cp-save")) { saveNewPw(); return; }
+    const ped = e.target.closest("[data-petedit]"); if (ped) { state.editPetId = ped.dataset.petedit; openSub("petedit"); return; }
+    if (e.target.closest("[data-petadd]")) { state.editPetId = null; openSub("petedit"); return; }
+    const pdel = e.target.closest("[data-petdel]"); if (pdel) { deletePet(pdel.dataset.petdel); return; }
+    const pact = e.target.closest("[data-petactive]"); if (pact) { setActivePet(pact.dataset.petactive); toast("Active pet switched 🐾"); openSub("pets"); return; }
+    const pchip = e.target.closest("[data-petchip]"); if (pchip) { setActivePet(pchip.dataset.petchip); return; }
     const sub = e.target.closest("[data-sub]"); if (sub) { handleSub(sub.dataset.sub); return; }
   });
 
