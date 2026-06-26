@@ -903,8 +903,10 @@
       (state.user && state.user.email ? state.user.email.split("@")[0] : "Guest");
   }
   function petLabel() {
-    const p = state.profile && state.profile.pet_type;
-    return p === "both" ? "Dog & Cat" : p === "cat" ? "Cat" : p === "dog" ? "Dog" : "Not set";
+    const p = state.profile || {};
+    if (p.pet_name) return p.pet_name + (p.pet_breed ? " · " + p.pet_breed : "");
+    const t = p.pet_type;
+    return t === "both" ? "Dog & Cat" : t === "cat" ? "Cat" : t === "dog" ? "Dog" : "Add your pet";
   }
   function updateAvatars() {
     const dav = $("#davatar"); if (dav) dav.textContent = state.user ? initialsOf() : "GW";
@@ -912,7 +914,12 @@
   function renderProfileHeader() {
     const av = $("#profAv"), nm = $("#profNm"), sub = $("#profSub");
     if (!nm) return;
-    if (state.user) { if (av) av.textContent = initialsOf(); nm.textContent = displayName(); sub.textContent = state.user.email || ""; }
+    if (state.user) {
+      if (av) av.textContent = initialsOf();
+      nm.textContent = displayName();
+      const pet = state.profile && (state.profile.pet_nickname || state.profile.pet_name);
+      sub.textContent = pet ? ("🐾 " + pet + "'s human") : (state.user.email || "");
+    }
     else { if (av) av.textContent = "🐾"; nm.textContent = "Guest"; sub.textContent = "Sign in to save foods & set alerts"; }
   }
 
@@ -986,16 +993,28 @@
       <button class="btn btn-danger" data-sub="delete" style="margin-top:10px;">Delete account</button>`;
   }
   function renderPets() {
-    const pt = (state.profile && state.profile.pet_type) || "";
-    state.editPet = pt || "dog";
+    const p = state.profile || {};
+    const sp = p.pet_type === "cat" ? "cat" : "dog"; // a single pet — dog or cat
+    state.editPet = sp;
     return `
-      <p class="auth-p" style="text-align:left;margin:0 0 14px;">Tell us what you've got so we can tailor results.</p>
-      <div class="seg" id="pet-seg">
-        <button type="button" data-pet="dog" class="${pt === "dog" ? "on" : ""}">🐶 Dog</button>
-        <button type="button" data-pet="cat" class="${pt === "cat" ? "on" : ""}">🐱 Cat</button>
-        <button type="button" data-pet="both" class="${pt === "both" ? "on" : ""}">Both</button>
+      <p class="auth-p" style="text-align:left;margin:0 0 16px;">Tell us about your best friend so BestBowl feels personal — and we can tailor food picks to them.</p>
+      <div class="fld"><label>They're a…</label>
+        <div class="seg" id="pet-seg">
+          <button type="button" data-pet="dog" class="${sp === "dog" ? "on" : ""}">🐶 Dog</button>
+          <button type="button" data-pet="cat" class="${sp === "cat" ? "on" : ""}">🐱 Cat</button>
+        </div></div>
+      <div class="fld"><label>Pet's name</label><input type="text" id="pet-name" value="${esc(p.pet_name || "")}" placeholder="e.g. Bella" autocomplete="off"></div>
+      <div class="fld"><label>Nickname <span style="color:var(--mut);font-weight:600;">· optional</span></label><input type="text" id="pet-nick" value="${esc(p.pet_nickname || "")}" placeholder="e.g. Bell-Bell" autocomplete="off"></div>
+      <div class="fld"><label>Breed</label><input type="text" id="pet-breed" value="${esc(p.pet_breed || "")}" placeholder="e.g. Golden Retriever" list="breed-list" autocomplete="off"></div>
+      <div class="fld" style="display:flex;gap:12px;margin-bottom:8px;">
+        <div style="flex:1;"><label>Age</label><input type="text" id="pet-age" value="${esc(p.pet_age || "")}" placeholder="e.g. 3 yrs" autocomplete="off"></div>
+        <div style="flex:1;"><label>Weight</label><input type="text" id="pet-weight" value="${esc(p.pet_weight || "")}" placeholder="e.g. 45 lbs" autocomplete="off"></div>
       </div>
-      <button class="btn btn-primary" id="pet-save" style="margin-top:18px;">Save</button>
+      <datalist id="breed-list">
+        <option>Labrador Retriever</option><option>Golden Retriever</option><option>French Bulldog</option><option>German Shepherd</option><option>Poodle</option><option>Bulldog</option><option>Beagle</option><option>Dachshund</option><option>Rottweiler</option><option>Yorkshire Terrier</option><option>Boxer</option><option>Shih Tzu</option><option>Chihuahua</option><option>Australian Shepherd</option><option>Border Collie</option><option>Cavalier King Charles Spaniel</option><option>Pomeranian</option><option>Siberian Husky</option><option>Great Dane</option><option>Mixed breed</option>
+        <option>Domestic Shorthair</option><option>Domestic Longhair</option><option>Maine Coon</option><option>Ragdoll</option><option>Siamese</option><option>Persian</option><option>Bengal</option><option>British Shorthair</option><option>Sphynx</option><option>Tabby</option>
+      </datalist>
+      <button class="btn btn-primary" id="pet-save" style="margin-top:10px;">Save pet</button>
       <div class="auth-ok" id="pet-ok" style="margin-top:12px;"></div>`;
   }
   function renderNotifs() {
@@ -1139,9 +1158,18 @@
     ok.classList.add("show");
   }
   async function savePet() {
-    const pet = state.editPet || "dog"; const btn = $("#pet-save"); busy(btn, true);
-    const r = await updateProfile({ pet_type: pet }); busy(btn, false);
-    const ok = $("#pet-ok"); ok.textContent = (r && r.error) ? "Couldn't save." : "Saved ✓"; ok.classList.add("show");
+    const val = (id) => { const el = $(id); return el ? el.value.trim() || null : null; };
+    const patch = {
+      pet_type: state.editPet || "dog",
+      pet_name: val("#pet-name"),
+      pet_nickname: val("#pet-nick"),
+      pet_breed: val("#pet-breed"),
+      pet_age: val("#pet-age"),
+      pet_weight: val("#pet-weight"),
+    };
+    const btn = $("#pet-save"); busy(btn, true);
+    const r = await updateProfile(patch); busy(btn, false);
+    const ok = $("#pet-ok"); ok.textContent = (r && r.error) ? "Couldn't save — try again." : "Saved ✓"; ok.classList.add("show");
     if (!(r && r.error)) refreshAuthUI();
   }
   async function saveNewPw() {
