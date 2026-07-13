@@ -131,9 +131,13 @@ function sizeOz(name) {
   let m;
   if ((m = t.match(/(\d+(?:\.\d+)?)\s*-?\s*(?:lb\b|lbs\b|pound)/))) return parseFloat(m[1]) * 16;
   const oz = (m = t.match(/(\d+(?:\.\d+)?)\s*-?\s*(?:oz\b|ounce)/)) ? parseFloat(m[1]) : null;
-  const cnt = (m = t.match(/(?:case of|pack of|count of|,\s*)(\d+)/)) ? parseInt(m[1], 10) : null;
-  if (oz != null) return oz * (cnt || 1);
-  return null;
+  if (oz == null) return null;
+  // A multi-pack count only counts if it's tied to a real count word — never a
+  // bare comma-number (which would grab the "5" out of "5.5-oz").
+  let cnt = null;
+  if ((m = t.match(/(?:case|pack|count)\s*of\s*(\d+)/))) cnt = parseInt(m[1], 10);
+  else if ((m = t.match(/(\d+)\s*-?\s*(?:ct\b|count\b|packs?\b|cans?\b|pouch(?:es)?\b|tubs?\b|sticks?\b|pieces?\b|x\b)/))) cnt = parseInt(m[1], 10);
+  return oz * (cnt || 1);
 }
 // Same-ish pack size (within ~20%). Unknown on either side → don't block.
 function sizesCompatible(a, b) {
