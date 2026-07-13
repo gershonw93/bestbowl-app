@@ -64,8 +64,9 @@ async function listCatalogs(cfg) {
 // Search a catalog for a query string (Impact "Search catalog" endpoint). The
 // Chewy catalog has 200k+ items, so we search per product instead of scanning.
 async function itemSearch(cfg, query) {
+  // NB: ItemSearch rejects a `CatalogId` param ("Invalid search param(s)"). It
+  // searches across the account's catalogs — fine here since Chewy is the only one.
   const params = new URLSearchParams({ Query: query, PageSize: '10' });
-  if (cfg.catalogId) params.set('CatalogId', cfg.catalogId);
   const data = await impactGet(cfg, `/Mediapartners/${cfg.sid}/Catalogs/ItemSearch?${params.toString()}`);
   return data.Items || data.Products || data.CatalogItems || [];
 }
