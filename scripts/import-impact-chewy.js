@@ -63,13 +63,19 @@ const num = (v) => {
   const n = Number(String(v).replace(/[^0-9.]/g, ''));
   return Number.isFinite(n) ? n : null;
 };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // GET against the Impact API with HTTP Basic auth (AccountSID:AuthToken), JSON.
-async function impactGet(cfg, pathOrUrl) {
+// Retries with backoff on 429 (rate limit) so a big run doesn't drop calls.
+async function impactGet(cfg, pathOrUrl, attempt = 0) {
   const url = pathOrUrl.startsWith('http') ? pathOrUrl : `https://api.impact.com${pathOrUrl}`;
   const auth = 'Basic ' + Buffer.from(`${cfg.sid}:${cfg.token}`).toString('base64');
   const res = await fetch(url, { headers: { Authorization: auth, Accept: 'application/json' } });
   const text = await res.text();
+  if (res.status === 429 && attempt < 4) {
+    await sleep(1200 * (attempt + 1)); // 1.2s, 2.4s, 3.6s, 4.8s
+    return impactGet(cfg, pathOrUrl, attempt + 1);
+  }
   if (!res.ok) {
     const snippet = text.slice(0, 500);
     if (cfg.log) cfg.log(`[err] Impact HTTP ${res.status}: ${snippet}`);
@@ -235,8 +241,13 @@ async function importChewy(opts = {}) {
   }
 
   const supabase = createClient(cfg.supabaseUrl, cfg.supabaseKey, { auth: { persistSession: false } });
-  const { data: products, error: pErr } = await supabase.from('products').select('upc,name,brand,image_url');
+  const { data: allProducts, error: pErr } = await supabase.from('products').select('upc,name,brand,image_url');
   if (pErr) throw pErr;
+  // Only match products we carry an Amazon price for — the Chewy-added products
+  // already have their own Chewy price, so re-scanning them just wastes calls.
+  const { data: amazonRows } = await supabase.from('prices').select('upc').eq('store', 'amazon');
+  const amazonSet = new Set((amazonRows || []).map((r) => r.upc));
+  const products = (allProducts || []).filter((p) => amazonSet.has(p.upc));
 
   // Decide which search endpoint we're allowed to use: prefer the direct catalog
   // search; if it's denied (403), fall back to the marketplace product search.
@@ -255,7 +266,7 @@ async function importChewy(opts = {}) {
   const errors = [];
   let loggedShape = false;
 
-  await mapLimit(products, 5, async (p) => {
+  await mapLimit(products, 3, async (p) => {
     const queries = queriesFor(p);
     if (!queries.length) { missed += 1; return; }
     // Try each query tier, keep the best fuzzy match; stop early on a strong hit.
