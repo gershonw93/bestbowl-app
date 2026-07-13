@@ -64,25 +64,27 @@ async function listCatalogs(cfg) {
 // Search a catalog for a query string (Impact "Search catalog" endpoint). The
 // Chewy catalog has 200k+ items, so we search per product instead of scanning.
 async function itemSearch(cfg, query) {
-  // NB: `Query` is an expression, so a bare multi-word string fails to parse —
-  // it must be a quoted phrase. Also, ItemSearch rejects a `CatalogId` param; it
-  // searches all of the account's catalogs (fine — Chewy is the only one here).
-  const phrase = '"' + String(query).replace(/["]+/g, ' ').trim() + '"';
-  const params = new URLSearchParams({ Query: phrase, PageSize: '25' });
+  // `Query` is a field-operator expression (fields: Name, Manufacturer,
+  // CurrentPrice, …; operators: ~ = contains, =, >, <, AND, OR, IN). A keyword
+  // search on the product name is: Name~"phrase". ItemSearch rejects a CatalogId
+  // param; it searches all of the account's catalogs (fine — Chewy is the only one).
+  const phrase = String(query).replace(/["]+/g, ' ').trim();
+  const params = new URLSearchParams({ Query: `Name~"${phrase}"`, PageSize: '50' });
   const data = await impactGet(cfg, `/Mediapartners/${cfg.sid}/Catalogs/ItemSearch?${params.toString()}`);
   return data.Items || data.Products || data.CatalogItems || [];
 }
 
-// Build a short, punctuation-free query from a product name (brand + a few
-// distinctive words) so the quoted phrase is likely to appear in Chewy titles.
-function searchQueryFor(p) {
-  const clean = String(p.name || p.brand || '')
+// Punctuation-free query candidates for a product: a specific one (brand + a few
+// distinctive words) and a broad fallback (just the brand), so we still find a
+// match when the longer phrase isn't a contiguous substring of the Chewy title.
+function queriesFor(p) {
+  const words = String(p.name || p.brand || '')
     .replace(/[^A-Za-z0-9 ]+/g, ' ')
     .split(/\s+/)
-    .filter((w) => w.length > 1)
-    .slice(0, 4)
-    .join(' ');
-  return clean || String(p.brand || 'pet food');
+    .filter((w) => w.length > 1);
+  const primary = words.slice(0, 4).join(' ');
+  const fallback = words.slice(0, 2).join(' ');
+  return [...new Set([primary, fallback].filter(Boolean))];
 }
 
 // Fallback: Impact marketplace product search (needs the Products scope, not the
@@ -151,11 +153,14 @@ async function importChewy(opts = {}) {
   let loggedShape = false;
 
   await mapLimit(products, 5, async (p) => {
-    const query = searchQueryFor(p);
-    if (!query) { missed += 1; return; }
-    let items;
-    try { items = await searchFn(cfg, query); searched += 1; }
-    catch (err) { errors.push({ upc: p.upc, message: err.message }); cfg.log(`[ERR] search "${query.slice(0, 36)}": ${err.message}`); return; }
+    const queries = queriesFor(p);
+    if (!queries.length) { missed += 1; return; }
+    let items = [];
+    for (const q of queries) {
+      try { items = await searchFn(cfg, q); searched += 1; }
+      catch (err) { errors.push({ upc: p.upc, message: err.message }); cfg.log(`[ERR] search "${q}": ${err.message}`); items = []; break; }
+      if (items.length) break; // got hits — no need for the broader fallback query
+    }
 
     if (!loggedShape && items[0]) { loggedShape = true; cfg.log(`[shape] first result: ${JSON.stringify(items[0]).slice(0, 400)}`); }
 
