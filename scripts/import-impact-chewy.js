@@ -64,11 +64,25 @@ async function listCatalogs(cfg) {
 // Search a catalog for a query string (Impact "Search catalog" endpoint). The
 // Chewy catalog has 200k+ items, so we search per product instead of scanning.
 async function itemSearch(cfg, query) {
-  // NB: ItemSearch rejects a `CatalogId` param ("Invalid search param(s)"). It
-  // searches across the account's catalogs — fine here since Chewy is the only one.
-  const params = new URLSearchParams({ Query: query, PageSize: '10' });
+  // NB: `Query` is an expression, so a bare multi-word string fails to parse —
+  // it must be a quoted phrase. Also, ItemSearch rejects a `CatalogId` param; it
+  // searches all of the account's catalogs (fine — Chewy is the only one here).
+  const phrase = '"' + String(query).replace(/["]+/g, ' ').trim() + '"';
+  const params = new URLSearchParams({ Query: phrase, PageSize: '25' });
   const data = await impactGet(cfg, `/Mediapartners/${cfg.sid}/Catalogs/ItemSearch?${params.toString()}`);
   return data.Items || data.Products || data.CatalogItems || [];
+}
+
+// Build a short, punctuation-free query from a product name (brand + a few
+// distinctive words) so the quoted phrase is likely to appear in Chewy titles.
+function searchQueryFor(p) {
+  const clean = String(p.name || p.brand || '')
+    .replace(/[^A-Za-z0-9 ]+/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length > 1)
+    .slice(0, 4)
+    .join(' ');
+  return clean || String(p.brand || 'pet food');
 }
 
 // Fallback: Impact marketplace product search (needs the Products scope, not the
@@ -137,7 +151,7 @@ async function importChewy(opts = {}) {
   let loggedShape = false;
 
   await mapLimit(products, 5, async (p) => {
-    const query = String(p.name || p.brand || '').slice(0, 80);
+    const query = searchQueryFor(p);
     if (!query) { missed += 1; return; }
     let items;
     try { items = await searchFn(cfg, query); searched += 1; }
