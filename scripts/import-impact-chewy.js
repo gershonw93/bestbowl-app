@@ -118,10 +118,10 @@ function queriesFor(p) {
     .split(/\s+/)
     .map((w) => w.replace(/^'+|'+$/g, ''))
     .filter((w) => w.length > 1);
+  // Keep this SHORT — every extra tier is another API call per product and Impact
+  // rate-limits hourly. Two tiers: a specific query, then a broad brand fallback.
   const tiers = [
     words.slice(0, 4),
-    words.slice(0, 3),
-    words.slice(1, 4), // drop the first word
     words.slice(0, 2), // brand only
   ];
   return [...new Set(tiers.map((t) => t.join(' ')).filter((s) => s))];
@@ -257,7 +257,11 @@ async function importChewy(opts = {}) {
     if (/HTTP 403/.test(err.message)) {
       method = 'marketplace';
       cfg.log('[impact] Catalog "Search catalog" is denied (403) — falling back to Marketplace product search. To use the direct catalog instead, create a token with the "Search catalog" scope.');
-    } else { throw err; }
+    } else {
+      // A 429 (or transient) on the probe shouldn't abort the whole run — the
+      // per-product searches have their own backoff/retry.
+      cfg.log(`[impact] probe failed (${String(err.message).slice(0, 70)}) — continuing with catalog search.`);
+    }
   }
   const searchFn = method === 'marketplace' ? marketplaceSearch : itemSearch;
   cfg.log(`[chewy] ${method} search for ${products.length} products (catalog ${cfg.catalogId})`);
