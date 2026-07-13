@@ -415,6 +415,9 @@ async function seedChewyExtras(opts = {}) {
       const image = it.ImageUrl || it.ImageURL || null;
       const price = num(it.CurrentPrice ?? it.SalePrice ?? it.Price ?? it.OriginalPrice);
       const link = it.Url || it.TrackingUrl || it.DirectUrl || null;
+      // A product with no price would render as "$NaN" — skip it entirely rather
+      // than create a card we can't price.
+      if (price == null) { skipped += 1; continue; }
       try {
         let e;
         ({ error: e } = await supabase.from('products').upsert({ upc, name, brand, category, life_stage: lifeStageOf(name), image_url: image, updated_at: new Date().toISOString() }, { onConflict: 'upc' }));
@@ -439,11 +442,111 @@ async function seedChewyExtras(opts = {}) {
   return { added, skipped, perCategory: perCat, errors: errors.length };
 }
 
+/**
+ * Repair pass: some products exist with NO price row at all (e.g. a Chewy-only
+ * product whose price row was later removed), so the app shows "$NaN". For each
+ * such product, re-search the Chewy catalog by name and re-attach its price +
+ * tracked link. Resumable and budget-limited, exactly like importChewy.
+ */
+async function healChewyPrices(opts = {}) {
+  const cfg = {
+    sid: opts.sid || process.env.IMPACT_ACCOUNT_SID,
+    token: opts.token || process.env.IMPACT_AUTH_TOKEN,
+    supabaseUrl: opts.supabaseUrl || process.env.SUPABASE_URL,
+    supabaseKey: opts.supabaseKey || process.env.SUPABASE_SERVICE_ROLE_KEY,
+    log: opts.log || ((m) => console.log(m)),
+  };
+  if (!cfg.sid || !cfg.token) throw new Error('Missing IMPACT_ACCOUNT_SID or IMPACT_AUTH_TOKEN');
+  if (!cfg.supabaseUrl || !cfg.supabaseKey) throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+
+  const supabase = createClient(cfg.supabaseUrl, cfg.supabaseKey, { auth: { persistSession: false } });
+  const { data: allProducts, error: pErr } = await supabase.from('products').select('upc,name,brand,image_url');
+  if (pErr) throw pErr;
+  const { data: pricedRows, error: prErr } = await supabase.from('prices').select('upc');
+  if (prErr) throw prErr;
+  const pricedSet = new Set((pricedRows || []).map((r) => r.upc));
+  // Only products with NO price row at all — the ones rendering as "$NaN".
+  const products = (allProducts || []).filter((p) => !pricedSet.has(p.upc));
+  cfg.log(`[heal] ${products.length} priceless product(s) to re-attach Chewy prices to`);
+
+  let searched = 0, matched = 0, missed = 0, deferred = 0, consecutive429 = 0, zeroResults = 0;
+  let aborted = false;
+  const errors = [];
+  const deadline = Date.now() + (cfg.budgetMs || 45000);
+  const outOfTime = () => aborted || Date.now() > deadline;
+
+  await mapLimit(products, 2, async (p) => {
+    if (outOfTime()) { deferred += 1; return; }
+    const queries = queriesFor(p);
+    if (!queries.length) { missed += 1; return; }
+    let best = null, anyItems = false;
+    for (const q of queries) {
+      if (outOfTime()) break;
+      let items = [];
+      try { items = await itemSearch(cfg, q); searched += 1; consecutive429 = 0; }
+      catch (err) {
+        if (/HTTP 429/.test(err.message)) {
+          consecutive429 += 1;
+          if (consecutive429 >= 10) { aborted = true; cfg.log('[heal] too many 429s — stopping early. Wait for the hourly rate limit to reset, then re-run.'); }
+        }
+        errors.push({ upc: p.upc, message: err.message }); continue;
+      }
+      if (items.length) anyItems = true;
+      for (const it of items) {
+        const nm = it.Name || it.ProductName || it.Title;
+        if (!nm) continue;
+        if (isBundle(nm) && !isBundle(p.name)) continue;
+        if (!sizesCompatible(p.name, nm)) continue;
+        if (!proteinsCompatible(p.name, nm)) continue;
+        if (!lifeStagesCompatible(p.name, nm)) continue;
+        if (!breedCompatible(p.name, nm)) continue;
+        const r = bestMatch(nm, [p]);
+        if (r && (!best || r.score > best.score)) best = { it: it, score: r.score };
+      }
+      if (best && best.score >= 0.6) break;
+    }
+    if (!best) {
+      if (outOfTime()) { deferred += 1; return; }
+      missed += 1;
+      if (!anyItems) zeroResults += 1;
+      cfg.log(`[heal] miss  "${String(p.name).slice(0, 50)}"  (${anyItems ? 'no spec match' : 'no search results'})`);
+      return;
+    }
+    const it = best.it;
+    const price = num(it.CurrentPrice ?? it.SalePrice ?? it.Price ?? it.OriginalPrice);
+    if (price == null) { missed += 1; cfg.log(`[heal] miss  "${String(p.name).slice(0, 50)}"  (no price in feed)`); return; }
+    const link = it.Url || it.TrackingUrl || it.DirectUrl || it.ProductUrl || null;
+    const image = it.ImageUrl || it.ImageURL || it.Image || null;
+    const autoship = num(it.AutoshipPrice ?? it.AutoShipPrice ?? it.SubscriptionPrice ?? it.SubscribePrice ?? it.SubscribeAndSavePrice);
+    try {
+      const { error } = await supabase.from('prices').upsert({
+        upc: p.upc, store: 'chewy', price,
+        autoship_price: autoship, subscribe_save_price: null,
+        in_stock: true, affiliate_url: link, updated_at: new Date().toISOString(),
+      }, { onConflict: 'upc,store' });
+      if (error) throw error;
+      if (image && !p.image_url) {
+        await supabase.from('products').update({ image_url: image, updated_at: new Date().toISOString() }).eq('upc', p.upc);
+      }
+      matched += 1;
+      cfg.log(`[heal] FIX  "${String(p.name).slice(0, 40)}" -> "${String(it.Name).slice(0, 34)}"  $${price}  (j=${best.score.toFixed(2)})`);
+    } catch (err) {
+      errors.push({ upc: p.upc, message: err.message });
+      cfg.log(`[ERR] upsert ${p.upc}: ${err.message}`);
+    }
+  });
+
+  const note = aborted ? ' (stopped early: rate-limited — wait & re-run)' : deferred ? ` (${deferred} left for next run — just hit the URL again)` : '';
+  cfg.log(`Done — ${searched} searched, ${matched} fixed, ${missed} missed (${zeroResults} no-results / ${missed - zeroResults} spec-rejected), ${deferred} deferred, ${errors.length} errors${note}`);
+  return { priceless: products.length, searched, fixed: matched, missed, missed_no_results: zeroResults, missed_spec_rejected: missed - zeroResults, deferred, remaining: deferred, rate_limited: aborted, errors: errors.length };
+}
+
 if (require.main === module) {
-  const run = process.argv[2] === 'extras' ? seedChewyExtras() : importChewy();
+  const arg = process.argv[2];
+  const run = arg === 'extras' ? seedChewyExtras() : arg === 'heal' ? healChewyPrices() : importChewy();
   Promise.resolve(run)
     .then((r) => { if (r && r.errors > 0) process.exit(1); })
     .catch((err) => { console.error('[FATAL]', err.message); process.exit(1); });
 }
 
-module.exports = { importChewy, seedChewyExtras, listCatalogs };
+module.exports = { importChewy, seedChewyExtras, healChewyPrices, listCatalogs };

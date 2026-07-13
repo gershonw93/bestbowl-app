@@ -256,6 +256,12 @@ Deno.serve(async (req) => {
     };
   });
 
+  // ---- drop products with no usable price ----
+  // A price-comparison card needs at least one real, in-stock price; without one
+  // the app renders "$NaN". This happens when an import creates a product but its
+  // price row is missing (e.g. a half-completed or later-cleaned import).
+  results = results.filter((r) => r.best_price != null && r.best_price > 0);
+
   // ---- optional store filter: only products carried by that store ----
   if (storeFilter) {
     results = results.filter((r) =>

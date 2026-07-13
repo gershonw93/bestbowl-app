@@ -657,7 +657,7 @@
   };
 
   const $ = (s) => document.querySelector(s);
-  const money = (n) => (n == null ? "—" : "$" + Number(n).toFixed(2));
+  const money = (n) => (n == null || !Number.isFinite(Number(n)) ? "—" : "$" + Number(n).toFixed(2));
   const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const petOf = (p) => (p.pet_type === "cat" || (p.category || "").startsWith("cat") ? "cat" : "dog");
@@ -884,9 +884,11 @@
       <div class="panel"><div class="panel-t display">Best price wins</div>${opts}${savePill}</div>`;
 
     const bestRow = (p.prices || []).find((x) => x.store === p.best_value_store) || (p.prices || [])[0] || {};
+    const bestEff = effOf(bestRow);
+    const hasPrice = Number.isFinite(bestEff);
     const isSaved = state.saved.some((x) => x.upc === p.upc);
     $("#pAction").innerHTML = `
-      <button class="ab-best display" id="abBest" ${bestRow.affiliate_url ? `data-url="${esc(bestRow.affiliate_url)}"` : ""}>Grab it — ${money(effOf(bestRow))}<small>cheapest at ${esc(cap(p.best_value_store || ""))}</small></button>
+      <button class="ab-best display" id="abBest" ${hasPrice ? "" : "disabled"} ${hasPrice && bestRow.affiliate_url ? `data-url="${esc(bestRow.affiliate_url)}"` : ""}>${hasPrice ? `Grab it — ${money(bestEff)}<small>cheapest at ${esc(cap(p.best_value_store || ""))}</small>` : `Price unavailable<small>check back soon</small>`}</button>
       <button class="ab-sec ${isSaved ? "on" : ""}" id="abSave">${isSaved ? HEART_F("#1D9E75", 20) : HEART_O("#444", 20)}<span>Save</span></button>
       <button class="ab-sec" id="abAlert">${BELL("#444", 20)}<span>Alert</span></button>`;
   }

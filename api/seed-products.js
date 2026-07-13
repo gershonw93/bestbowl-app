@@ -14,6 +14,9 @@
  *   e.g.  https://<app>.vercel.app/api/seed-products?secret=<SEED_SECRET>&phase=chewy
  * ?phase=chewy-add ADDS Chewy-only products (ones the Amazon seed lacks).
  *   e.g.  https://<app>.vercel.app/api/seed-products?secret=<SEED_SECRET>&phase=chewy-add
+ * ?phase=chewy-heal RE-ATTACHES Chewy prices to products left with no price row
+ * (they render as "$NaN"). Resumable — just hit it again if it defers any.
+ *   e.g.  https://<app>.vercel.app/api/seed-products?secret=<SEED_SECRET>&phase=chewy-heal
  *
  * Authenticated two ways — both checked against the SEED_SECRET env var:
  *   1. Header (e.g. from hoppscotch.io):
@@ -31,7 +34,7 @@
  */
 
 const { seed, seedStores } = require('../scripts/seed-real-products.js');
-const { importChewy, seedChewyExtras } = require('../scripts/import-impact-chewy.js');
+const { importChewy, seedChewyExtras, healChewyPrices } = require('../scripts/import-impact-chewy.js');
 
 module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(204).end();
@@ -72,6 +75,10 @@ module.exports = async (req, res) => {
     } else if (phase === 'chewy-add') {
       // Add Chewy-only products our Amazon seed doesn't have.
       out.chewy_extras = await seedChewyExtras({ log: (m) => log.push(m) });
+    } else if (phase === 'chewy-heal') {
+      // Re-attach Chewy prices to products that ended up with no price row
+      // (they were rendering as "$NaN").
+      out.chewy_heal = await healChewyPrices({ log: (m) => log.push(m) });
     } else {
       if (phase !== 'stores') {
         out.amazon = await seed({
