@@ -72,8 +72,8 @@ async function impactGet(cfg, pathOrUrl, attempt = 0) {
   const auth = 'Basic ' + Buffer.from(`${cfg.sid}:${cfg.token}`).toString('base64');
   const res = await fetch(url, { headers: { Authorization: auth, Accept: 'application/json' } });
   const text = await res.text();
-  if (res.status === 429 && attempt < 4) {
-    await sleep(1200 * (attempt + 1)); // 1.2s, 2.4s, 3.6s, 4.8s
+  if (res.status === 429 && attempt < 1) {
+    await sleep(700); // one short retry only — don't burn the function's time budget
     return impactGet(cfg, pathOrUrl, attempt + 1);
   }
   if (!res.ok) {
@@ -245,9 +245,15 @@ async function importChewy(opts = {}) {
   if (pErr) throw pErr;
   // Only match products we carry an Amazon price for — the Chewy-added products
   // already have their own Chewy price, so re-scanning them just wastes calls.
-  const { data: amazonRows } = await supabase.from('prices').select('upc').eq('store', 'amazon');
+  const [{ data: amazonRows }, { data: chewyRows }] = await Promise.all([
+    supabase.from('prices').select('upc').eq('store', 'amazon'),
+    supabase.from('prices').select('upc').eq('store', 'chewy'),
+  ]);
   const amazonSet = new Set((amazonRows || []).map((r) => r.upc));
-  const products = (allProducts || []).filter((p) => amazonSet.has(p.upc));
+  const chewySet = new Set((chewyRows || []).map((r) => r.upc));
+  // Resumable: only process Amazon products that DON'T already have a Chewy price.
+  // Each run makes progress, so re-running finishes the rest without timing out.
+  const products = (allProducts || []).filter((p) => amazonSet.has(p.upc) && !chewySet.has(p.upc));
 
   // Decide which search endpoint we're allowed to use: prefer the direct catalog
   // search; if it's denied (403), fall back to the marketplace product search.
@@ -266,19 +272,31 @@ async function importChewy(opts = {}) {
   const searchFn = method === 'marketplace' ? marketplaceSearch : itemSearch;
   cfg.log(`[chewy] ${method} search for ${products.length} products (catalog ${cfg.catalogId})`);
 
-  let searched = 0, matched = 0, missed = 0;
+  let searched = 0, matched = 0, missed = 0, deferred = 0, consecutive429 = 0;
+  let aborted = false;
   const errors = [];
   let loggedShape = false;
+  // Stop starting new work ~45s in so we always return before Vercel's timeout.
+  const deadline = Date.now() + (cfg.budgetMs || 45000);
+  const outOfTime = () => aborted || Date.now() > deadline;
 
-  await mapLimit(products, 3, async (p) => {
+  await mapLimit(products, 2, async (p) => {
+    if (outOfTime()) { deferred += 1; return; }
     const queries = queriesFor(p);
     if (!queries.length) { missed += 1; return; }
     // Try each query tier, keep the best fuzzy match; stop early on a strong hit.
     let best = null;
     for (const q of queries) {
+      if (outOfTime()) break;
       let items = [];
-      try { items = await searchFn(cfg, q); searched += 1; }
-      catch (err) { errors.push({ upc: p.upc, message: err.message }); cfg.log(`[ERR] search "${q}": ${err.message}`); continue; }
+      try { items = await searchFn(cfg, q); searched += 1; consecutive429 = 0; }
+      catch (err) {
+        if (/HTTP 429/.test(err.message)) {
+          consecutive429 += 1;
+          if (consecutive429 >= 10) { aborted = true; cfg.log('[impact] too many 429s — stopping early. Wait for the hourly rate limit to reset, then re-run.'); }
+        }
+        errors.push({ upc: p.upc, message: err.message }); cfg.log(`[ERR] search "${q}": ${err.message}`); continue;
+      }
       if (!loggedShape && items[0]) { loggedShape = true; cfg.log(`[shape] first result: ${JSON.stringify(items[0]).slice(0, 1500)}`); }
       for (const it of items) {
         if (method === 'marketplace' && !looksChewy(it)) continue; // marketplace spans stores
@@ -295,9 +313,8 @@ async function importChewy(opts = {}) {
       if (best && best.score >= 0.6) break; // strong enough — no need to try broader tiers
     }
     if (!best) {
+      if (outOfTime()) { deferred += 1; return; } // ran out of budget mid-product, not a real miss
       missed += 1;
-      // Drop any stale Chewy price from an earlier, looser run (e.g. a bad bundle match).
-      try { await supabase.from('prices').delete().eq('upc', p.upc).eq('store', 'chewy'); } catch (_e) {}
       cfg.log(`[chewy] miss  "${String(p.name).slice(0, 50)}"`);
       return;
     }
@@ -327,8 +344,9 @@ async function importChewy(opts = {}) {
     }
   });
 
-  cfg.log(`Done — ${searched} searched, ${matched} matched, ${missed} missed, ${errors.length} errors`);
-  return { searched, matched, missed, errors: errors.length };
+  const note = aborted ? ' (stopped early: rate-limited — wait & re-run)' : deferred ? ` (${deferred} left for next run — just hit the URL again)` : '';
+  cfg.log(`Done — ${searched} searched, ${matched} matched, ${missed} missed, ${deferred} deferred, ${errors.length} errors${note}`);
+  return { searched, matched, missed, deferred, remaining: deferred, rate_limited: aborted, errors: errors.length, to_process: products.length };
 }
 
 /**
