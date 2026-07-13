@@ -61,8 +61,27 @@ async function listCatalogs(cfg) {
   return cats.map((c) => ({ id: c.Id || c.CatalogId, name: c.Name, advertiser: c.AdvertiserName || c.CampaignName || '' }));
 }
 
+// Search a catalog for a query string (Impact "Search catalog" endpoint). The
+// Chewy catalog has 200k+ items, so we search per product instead of scanning.
+async function itemSearch(cfg, query) {
+  const params = new URLSearchParams({ Query: query, PageSize: '10' });
+  if (cfg.catalogId) params.set('CatalogId', cfg.catalogId);
+  const data = await impactGet(cfg, `/Mediapartners/${cfg.sid}/Catalogs/ItemSearch?${params.toString()}`);
+  return data.Items || data.Products || data.CatalogItems || [];
+}
+
+// Run fn over items with bounded concurrency (keeps the whole import in one request).
+async function mapLimit(arr, limit, fn) {
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limit, arr.length) }, async () => {
+    while (i < arr.length) { const idx = i++; await fn(arr[idx], idx); }
+  });
+  await Promise.all(workers);
+}
+
 /**
- * Import Chewy catalog items and upsert matched prices. Returns a summary.
+ * For each product we stock, search the Chewy catalog, take the best fuzzy match
+ * and upsert its price + tracked link. Returns a summary.
  */
 async function importChewy(opts = {}) {
   const cfg = {
@@ -87,56 +106,55 @@ async function importChewy(opts = {}) {
   const supabase = createClient(cfg.supabaseUrl, cfg.supabaseKey, { auth: { persistSession: false } });
   const { data: products, error: pErr } = await supabase.from('products').select('upc,name,brand,image_url');
   if (pErr) throw pErr;
-  cfg.log(`[chewy] ${products.length} existing products loaded for matching`);
+  cfg.log(`[chewy] searching Chewy catalog ${cfg.catalogId} for ${products.length} products`);
 
-  let fetched = 0, matched = 0, missed = 0, page = 1;
+  let searched = 0, matched = 0, missed = 0;
   const errors = [];
-  let uri = `/Mediapartners/${cfg.sid}/Catalogs/${cfg.catalogId}/Items?PageSize=100&Page=1`;
+  let loggedShape = false;
 
-  while (uri && fetched < cfg.maxItems) {
-    const data = await impactGet(cfg, uri);
-    const items = data.Items || data.CatalogItems || [];
-    if (page === 1 && items[0]) cfg.log(`[shape] first item: ${JSON.stringify(items[0]).slice(0, 400)}`);
-    cfg.log(`[chewy] page ${page}: ${items.length} items`);
+  await mapLimit(products, 5, async (p) => {
+    const query = String(p.name || p.brand || '').slice(0, 80);
+    if (!query) { missed += 1; return; }
+    let items;
+    try { items = await itemSearch(cfg, query); searched += 1; }
+    catch (err) { errors.push({ upc: p.upc, message: err.message }); cfg.log(`[ERR] search "${query.slice(0, 36)}": ${err.message}`); return; }
 
+    if (!loggedShape && items[0]) { loggedShape = true; cfg.log(`[shape] first result: ${JSON.stringify(items[0]).slice(0, 400)}`); }
+
+    // pick the Chewy result that best matches THIS product (name Jaccard >= 0.5)
+    let best = null;
     for (const it of items) {
-      fetched += 1;
-      const name = it.Name || it.ProductName || it.Title;
-      if (!name) continue;
-      const price = num(it.CurrentPrice ?? it.SalePrice ?? it.Price ?? it.OriginalPrice);
-      const link = it.Url || it.TrackingUrl || it.DirectUrl || it.ProductUrl || null;
-      const image = it.ImageUrl || it.ImageURL || it.Image || null;
-
-      const m = bestMatch(name, products);
-      if (!m) { missed += 1; continue; }
-      try {
-        const { error } = await supabase.from('prices').upsert({
-          upc: m.product.upc, store: 'chewy', price,
-          autoship_price: null, subscribe_save_price: null,
-          in_stock: true, affiliate_url: link, updated_at: new Date().toISOString(),
-        }, { onConflict: 'upc,store' });
-        if (error) throw error;
-        // opportunistically fill a missing product image from Chewy
-        if (image && !m.product.image_url) {
-          await supabase.from('products').update({ image_url: image, updated_at: new Date().toISOString() }).eq('upc', m.product.upc);
-          m.product.image_url = image;
-        }
-        matched += 1;
-        cfg.log(`[chewy] MATCH "${String(name).slice(0, 44)}" -> ${String(m.product.name).slice(0, 36)}  $${price ?? '—'}  (j=${m.score.toFixed(2)})`);
-      } catch (err) {
-        errors.push({ name, message: err.message });
-        cfg.log(`[ERR] upsert ${m.product.upc}: ${err.message}`);
-      }
+      const nm = it.Name || it.ProductName || it.Title;
+      if (!nm) continue;
+      const r = bestMatch(nm, [p]);
+      if (r && (!best || r.score > best.score)) best = { it: it, score: r.score };
     }
+    if (!best) { missed += 1; cfg.log(`[chewy] miss  "${String(p.name).slice(0, 50)}"`); return; }
 
-    const next = data['@nextpageuri'] || data.NextPageUri || data.nextpageuri || null;
-    uri = next || null;
-    page += 1;
-    if (page > 200) break; // hard safety stop
-  }
+    const it = best.it;
+    const price = num(it.CurrentPrice ?? it.SalePrice ?? it.Price ?? it.OriginalPrice);
+    const link = it.Url || it.TrackingUrl || it.DirectUrl || it.ProductUrl || null;
+    const image = it.ImageUrl || it.ImageURL || it.Image || null;
+    try {
+      const { error } = await supabase.from('prices').upsert({
+        upc: p.upc, store: 'chewy', price,
+        autoship_price: null, subscribe_save_price: null,
+        in_stock: true, affiliate_url: link, updated_at: new Date().toISOString(),
+      }, { onConflict: 'upc,store' });
+      if (error) throw error;
+      if (image && !p.image_url) {
+        await supabase.from('products').update({ image_url: image, updated_at: new Date().toISOString() }).eq('upc', p.upc);
+      }
+      matched += 1;
+      cfg.log(`[chewy] MATCH "${String(p.name).slice(0, 40)}" -> "${String(it.Name).slice(0, 34)}"  $${price ?? '—'}  (j=${best.score.toFixed(2)})`);
+    } catch (err) {
+      errors.push({ upc: p.upc, message: err.message });
+      cfg.log(`[ERR] upsert ${p.upc}: ${err.message}`);
+    }
+  });
 
-  cfg.log(`Done — ${fetched} catalog items scanned, ${matched} matched, ${missed} missed, ${errors.length} errors`);
-  return { fetched, matched, missed, errors: errors.length };
+  cfg.log(`Done — ${searched} searched, ${matched} matched, ${missed} missed, ${errors.length} errors`);
+  return { searched, matched, missed, errors: errors.length };
 }
 
 if (require.main === module) {
