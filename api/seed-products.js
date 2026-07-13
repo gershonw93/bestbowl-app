@@ -8,6 +8,11 @@
  * ?phase=amazon for only phase 1. With no phase, both run (12 credits).
  *   e.g.  https://<app>.vercel.app/api/seed-products?secret=<SEED_SECRET>&phase=stores
  *
+ * ?phase=chewy imports REAL Chewy prices + tracking links from the Impact.com
+ * product catalog (needs IMPACT_ACCOUNT_SID / IMPACT_AUTH_TOKEN, and optionally
+ * IMPACT_CHEWY_CATALOG_ID — leave it unset once to list your catalogs).
+ *   e.g.  https://<app>.vercel.app/api/seed-products?secret=<SEED_SECRET>&phase=chewy
+ *
  * Authenticated two ways — both checked against the SEED_SECRET env var:
  *   1. Header (e.g. from hoppscotch.io):
  *        POST https://<your-app>.vercel.app/api/seed-products
@@ -24,6 +29,7 @@
  */
 
 const { seed, seedStores } = require('../scripts/seed-real-products.js');
+const { importChewy } = require('../scripts/import-impact-chewy.js');
 
 module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(204).end();
@@ -58,16 +64,21 @@ module.exports = async (req, res) => {
   const log = [];
   const out = {};
   try {
-    if (phase !== 'stores') {
-      out.amazon = await seed({
-        perCategory: 20,   // top 20 per category
-        delayMs: 800,      // short pause between the category calls
-        partnerTag: process.env.AMAZON_PARTNER_TAG || 'bestbowl0a-20', // affiliate tag
-        log: (m) => log.push(m),
-      });
-    }
-    if (phase !== 'amazon') {
-      out.stores = await seedStores({ log: (m) => log.push(m) });
+    if (phase === 'chewy') {
+      // Real Chewy prices + tracking links from the Impact.com product catalog.
+      out.chewy = await importChewy({ log: (m) => log.push(m) });
+    } else {
+      if (phase !== 'stores') {
+        out.amazon = await seed({
+          perCategory: 20,   // top 20 per category
+          delayMs: 800,      // short pause between the category calls
+          partnerTag: process.env.AMAZON_PARTNER_TAG || 'bestbowl0a-20', // affiliate tag
+          log: (m) => log.push(m),
+        });
+      }
+      if (phase !== 'amazon') {
+        out.stores = await seedStores({ log: (m) => log.push(m) });
+      }
     }
     return res.status(200).json({ ok: true, ran_at: new Date().toISOString(), phase: phase || 'all', ...out, log });
   } catch (err) {

@@ -363,4 +363,4 @@ if (require.main === module) {
     .catch((err) => { console.error('[FATAL]', err.message); process.exit(1); });
 }
 
-module.exports = { seed, seedStores, CATEGORIES, STORE_SEARCHES };
+module.exports = { seed, seedStores, CATEGORIES, STORE_SEARCHES, bestMatch, brandOf };
