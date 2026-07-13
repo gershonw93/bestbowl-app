@@ -54,6 +54,17 @@ interface PriceRow {
 const effective = (p: PriceRow): number =>
   Number(p.autoship_price || p.subscribe_save_price || p.price);
 
+// Tie-break for the "BEST"/Grab-it store when the effective price is EXACTLY
+// equal across stores: promote the one that pays the best commission (a true
+// tie is free money either way). Lower index = higher priority. Ordered by
+// rough pet commission — adjust to your live affiliate rates:
+//   Amazon ~3%  >  Walmart  >  PetSmart  >  Chewy ~1%
+const STORE_PRIORITY = ["amazon", "walmart", "petsmart", "chewy"];
+const storeRank = (s: string): number => {
+  const i = STORE_PRIORITY.indexOf(String(s || "").toLowerCase());
+  return i === -1 ? STORE_PRIORITY.length : i;
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -183,8 +194,10 @@ Deno.serve(async (req) => {
       };
     });
 
-    // Best store first.
-    pricesOut.sort((a, b) => b.value_score - a.value_score);
+    // Best store first; on an exact tie, the higher-commission store wins.
+    pricesOut.sort((a, b) =>
+      (b.value_score - a.value_score) || (storeRank(a.store) - storeRank(b.store))
+    );
 
     const cheapest = allPrices.length ? round2(minPrice) : null;
     const savings =
@@ -194,9 +207,12 @@ Deno.serve(async (req) => {
     let bestPriceStore: string | null = null;
     let bestPrice: number | null = null;
     for (const p of productPrices) {
-      const eff = effective(p);
-      if (bestPrice == null || eff < bestPrice) {
-        bestPrice = round2(eff);
+      const eff = round2(effective(p));
+      if (
+        bestPrice == null || eff < bestPrice ||
+        (eff === bestPrice && storeRank(p.store) < storeRank(bestPriceStore!))
+      ) {
+        bestPrice = eff;
         bestPriceStore = p.store;
       }
     }
