@@ -209,6 +209,32 @@ function breedCompatible(a, b) {
   return ba === bb;
 }
 
+// --- pet-type guard (dog food ≠ cat food) ---
+// Read the pet a listing is for from its name. Word-boundaried so "category"
+// or "muscat" can't false-trigger. Returns null when unclear (or a variety
+// that mentions both) so we never block on a guess.
+function namePetType(name) {
+  const t = ' ' + String(name || '').toLowerCase() + ' ';
+  const dog = /\bdogs?\b|\bpupp(?:y|ies)\b|\bcanine\b/.test(t);
+  const cat = /\bcats?\b|\bkittens?\b|\bfeline\b/.test(t);
+  if (dog && !cat) return 'dog';
+  if (cat && !dog) return 'cat';
+  return null;
+}
+// A product's pet type: trust its category prefix (dog_/cat_) first — that's
+// authoritative even when the Amazon title is truncated — else read its name.
+function productPetType(p) {
+  const c = String((p && p.category) || '').toLowerCase();
+  if (c.startsWith('dog')) return 'dog';
+  if (c.startsWith('cat')) return 'cat';
+  return namePetType(p && p.name);
+}
+function petTypesCompatible(prodPet, candName) {
+  const cp = namePetType(candName);
+  if (!prodPet || !cp) return true; // unknown on either side → don't block
+  return prodPet === cp;
+}
+
 // Fallback: Impact marketplace product search (needs the Products scope, not the
 // catalog Search scope). Results span advertisers, so callers must Chewy-filter.
 async function marketplaceSearch(cfg, query) {
@@ -254,7 +280,7 @@ async function importChewy(opts = {}) {
   }
 
   const supabase = createClient(cfg.supabaseUrl, cfg.supabaseKey, { auth: { persistSession: false } });
-  const { data: allProducts, error: pErr } = await supabase.from('products').select('upc,name,brand,image_url');
+  const { data: allProducts, error: pErr } = await supabase.from('products').select('upc,name,brand,image_url,category');
   if (pErr) throw pErr;
   // Only match products we carry an Amazon price for — the Chewy-added products
   // already have their own Chewy price, so re-scanning them just wastes calls.
@@ -295,6 +321,7 @@ async function importChewy(opts = {}) {
 
   await mapLimit(products, 2, async (p) => {
     if (outOfTime()) { deferred += 1; return; }
+    const prodPet = productPetType(p);
     const queries = queriesFor(p);
     if (!queries.length) { missed += 1; return; }
     // Try each query tier, keep the best fuzzy match; stop early on a strong hit.
@@ -316,6 +343,7 @@ async function importChewy(opts = {}) {
         if (method === 'marketplace' && !looksChewy(it)) continue; // marketplace spans stores
         const nm = it.Name || it.ProductName || it.Title;
         if (!nm) continue;
+        if (!petTypesCompatible(prodPet, nm)) continue;      // dog food ≠ cat food
         if (isBundle(nm) && !isBundle(p.name)) continue;     // skip Chewy combos/bundles
         if (!sizesCompatible(p.name, nm)) continue;          // require same-ish pack size
         if (!proteinsCompatible(p.name, nm)) continue;       // require same primary protein/flavor
@@ -326,6 +354,9 @@ async function importChewy(opts = {}) {
       }
       if (best && best.score >= 0.6) break; // strong enough — no need to try broader tiers
     }
+    // Amazon best-seller titles are truncated by the feed, so a shared brand +
+    // generic words can inflate a weak match. Require a firmer 0.6 to accept.
+    if (best && best.score < 0.6) best = null;
     if (!best) {
       if (outOfTime()) { deferred += 1; return; } // ran out of budget mid-product, not a real miss
       missed += 1;
@@ -460,7 +491,7 @@ async function healChewyPrices(opts = {}) {
   if (!cfg.supabaseUrl || !cfg.supabaseKey) throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
 
   const supabase = createClient(cfg.supabaseUrl, cfg.supabaseKey, { auth: { persistSession: false } });
-  const { data: allProducts, error: pErr } = await supabase.from('products').select('upc,name,brand,image_url');
+  const { data: allProducts, error: pErr } = await supabase.from('products').select('upc,name,brand,image_url,category');
   if (pErr) throw pErr;
   const { data: pricedRows, error: prErr } = await supabase.from('prices').select('upc');
   if (prErr) throw prErr;
@@ -477,6 +508,7 @@ async function healChewyPrices(opts = {}) {
 
   await mapLimit(products, 2, async (p) => {
     if (outOfTime()) { deferred += 1; return; }
+    const prodPet = productPetType(p);
     const queries = queriesFor(p);
     if (!queries.length) { missed += 1; return; }
     let best = null, anyItems = false;
@@ -495,6 +527,7 @@ async function healChewyPrices(opts = {}) {
       for (const it of items) {
         const nm = it.Name || it.ProductName || it.Title;
         if (!nm) continue;
+        if (!petTypesCompatible(prodPet, nm)) continue;
         if (isBundle(nm) && !isBundle(p.name)) continue;
         if (!sizesCompatible(p.name, nm)) continue;
         if (!proteinsCompatible(p.name, nm)) continue;
