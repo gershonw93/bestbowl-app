@@ -92,4 +92,6 @@ module.exports = async (req, res) => {
 };
 
 // Up to 12 external calls (4 Amazon + 8 store searches); raise the limit.
-module.exports.config = { maxDuration: 300 };
+// 60s is the Hobby-plan cap; the Chewy phase self-limits to a ~45s budget and
+// returns partial progress (resumable) so it never hits this.
+module.exports.config = { maxDuration: 60 };
