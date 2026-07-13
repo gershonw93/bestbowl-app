@@ -70,6 +70,17 @@ async function itemSearch(cfg, query) {
   return data.Items || data.Products || data.CatalogItems || [];
 }
 
+// Fallback: Impact marketplace product search (needs the Products scope, not the
+// catalog Search scope). Results span advertisers, so callers must Chewy-filter.
+async function marketplaceSearch(cfg, query) {
+  const params = new URLSearchParams({ Query: query, PageSize: '10' });
+  const data = await impactGet(cfg, `/Mediapartners/${cfg.sid}/Marketplace/Products?${params.toString()}`);
+  return data.Products || data.Items || data.MarketplaceProducts || [];
+}
+
+// Loose Chewy check for marketplace results (link or advertiser mentions chewy).
+const looksChewy = (it) => JSON.stringify(it || '').toLowerCase().includes('chewy');
+
 // Run fn over items with bounded concurrency (keeps the whole import in one request).
 async function mapLimit(arr, limit, fn) {
   let i = 0;
@@ -106,7 +117,19 @@ async function importChewy(opts = {}) {
   const supabase = createClient(cfg.supabaseUrl, cfg.supabaseKey, { auth: { persistSession: false } });
   const { data: products, error: pErr } = await supabase.from('products').select('upc,name,brand,image_url');
   if (pErr) throw pErr;
-  cfg.log(`[chewy] searching Chewy catalog ${cfg.catalogId} for ${products.length} products`);
+
+  // Decide which search endpoint we're allowed to use: prefer the direct catalog
+  // search; if it's denied (403), fall back to the marketplace product search.
+  let method = 'catalog';
+  try { await itemSearch(cfg, 'dog food'); }
+  catch (err) {
+    if (/HTTP 403/.test(err.message)) {
+      method = 'marketplace';
+      cfg.log('[impact] Catalog "Search catalog" is denied (403) — falling back to Marketplace product search. To use the direct catalog instead, create a token with the "Search catalog" scope.');
+    } else { throw err; }
+  }
+  const searchFn = method === 'marketplace' ? marketplaceSearch : itemSearch;
+  cfg.log(`[chewy] ${method} search for ${products.length} products (catalog ${cfg.catalogId})`);
 
   let searched = 0, matched = 0, missed = 0;
   const errors = [];
@@ -116,7 +139,7 @@ async function importChewy(opts = {}) {
     const query = String(p.name || p.brand || '').slice(0, 80);
     if (!query) { missed += 1; return; }
     let items;
-    try { items = await itemSearch(cfg, query); searched += 1; }
+    try { items = await searchFn(cfg, query); searched += 1; }
     catch (err) { errors.push({ upc: p.upc, message: err.message }); cfg.log(`[ERR] search "${query.slice(0, 36)}": ${err.message}`); return; }
 
     if (!loggedShape && items[0]) { loggedShape = true; cfg.log(`[shape] first result: ${JSON.stringify(items[0]).slice(0, 400)}`); }
@@ -124,6 +147,7 @@ async function importChewy(opts = {}) {
     // pick the Chewy result that best matches THIS product (name Jaccard >= 0.5)
     let best = null;
     for (const it of items) {
+      if (method === 'marketplace' && !looksChewy(it)) continue; // marketplace spans stores
       const nm = it.Name || it.ProductName || it.Title;
       if (!nm) continue;
       const r = bestMatch(nm, [p]);
