@@ -131,9 +131,13 @@ function sizeOz(name) {
   let m;
   if ((m = t.match(/(\d+(?:\.\d+)?)\s*-?\s*(?:lb\b|lbs\b|pound)/))) return parseFloat(m[1]) * 16;
   const oz = (m = t.match(/(\d+(?:\.\d+)?)\s*-?\s*(?:oz\b|ounce)/)) ? parseFloat(m[1]) : null;
-  const cnt = (m = t.match(/(?:case of|pack of|count of|,\s*)(\d+)/)) ? parseInt(m[1], 10) : null;
-  if (oz != null) return oz * (cnt || 1);
-  return null;
+  if (oz == null) return null;
+  // A multi-pack count only counts if it's tied to a real count word — never a
+  // bare comma-number (which would grab the "5" out of "5.5-oz").
+  let cnt = null;
+  if ((m = t.match(/(?:case|pack|count)\s*of\s*(\d+)/))) cnt = parseInt(m[1], 10);
+  else if ((m = t.match(/(\d+)\s*-?\s*(?:ct\b|count\b|packs?\b|cans?\b|pouch(?:es)?\b|tubs?\b|sticks?\b|pieces?\b|x\b)/))) cnt = parseInt(m[1], 10);
+  return oz * (cnt || 1);
 }
 // Same-ish pack size (within ~20%). Unknown on either side → don't block.
 function sizesCompatible(a, b) {
@@ -141,6 +145,22 @@ function sizesCompatible(a, b) {
   if (!A || !B) return true;
   const hi = Math.max(A, B), lo = Math.min(A, B);
   return lo / hi >= 0.8;
+}
+
+// --- protein/flavor guard (so turkey recipe ≠ chicken recipe) ---
+const PROTEINS = ['chicken', 'turkey', 'beef', 'salmon', 'whitefish', 'tuna', 'lamb', 'duck',
+  'venison', 'rabbit', 'pork', 'bison', 'trout', 'herring', 'mackerel', 'sardine', 'cod', 'liver'];
+function primaryProtein(name) {
+  const t = String(name || '').toLowerCase();
+  let best = null, bestIdx = Infinity;
+  for (const p of PROTEINS) { const i = t.indexOf(p); if (i >= 0 && i < bestIdx) { bestIdx = i; best = p; } }
+  return best;
+}
+function proteinsCompatible(a, b) {
+  if (/variety|sampler|multi.?flavor/i.test(String(a) + ' ' + String(b))) return true; // variety packs mix proteins
+  const pa = primaryProtein(a), pb = primaryProtein(b);
+  if (!pa || !pb) return true; // can't tell → don't block
+  return pa === pb;
 }
 
 // Fallback: Impact marketplace product search (needs the Products scope, not the
@@ -217,13 +237,14 @@ async function importChewy(opts = {}) {
       let items = [];
       try { items = await searchFn(cfg, q); searched += 1; }
       catch (err) { errors.push({ upc: p.upc, message: err.message }); cfg.log(`[ERR] search "${q}": ${err.message}`); continue; }
-      if (!loggedShape && items[0]) { loggedShape = true; cfg.log(`[shape] first result: ${JSON.stringify(items[0]).slice(0, 400)}`); }
+      if (!loggedShape && items[0]) { loggedShape = true; cfg.log(`[shape] first result: ${JSON.stringify(items[0]).slice(0, 1500)}`); }
       for (const it of items) {
         if (method === 'marketplace' && !looksChewy(it)) continue; // marketplace spans stores
         const nm = it.Name || it.ProductName || it.Title;
         if (!nm) continue;
-        if (isBundle(nm) && !isBundle(p.name)) continue;   // skip Chewy combos/bundles
-        if (!sizesCompatible(p.name, nm)) continue;        // require same-ish pack size
+        if (isBundle(nm) && !isBundle(p.name)) continue;     // skip Chewy combos/bundles
+        if (!sizesCompatible(p.name, nm)) continue;          // require same-ish pack size
+        if (!proteinsCompatible(p.name, nm)) continue;       // require same primary protein/flavor
         const r = bestMatch(nm, [p]);
         if (r && (!best || r.score > best.score)) best = { it: it, score: r.score };
       }
@@ -241,10 +262,13 @@ async function importChewy(opts = {}) {
     const price = num(it.CurrentPrice ?? it.SalePrice ?? it.Price ?? it.OriginalPrice);
     const link = it.Url || it.TrackingUrl || it.DirectUrl || it.ProductUrl || null;
     const image = it.ImageUrl || it.ImageURL || it.Image || null;
+    // If the feed exposes a Chewy Autoship/subscribe price under any of these
+    // names, capture it (the app already prefers autoship → sub&save → price).
+    const autoship = num(it.AutoshipPrice ?? it.AutoShipPrice ?? it.SubscriptionPrice ?? it.SubscribePrice ?? it.SubscribeAndSavePrice);
     try {
       const { error } = await supabase.from('prices').upsert({
         upc: p.upc, store: 'chewy', price,
-        autoship_price: null, subscribe_save_price: null,
+        autoship_price: autoship, subscribe_save_price: null,
         in_stock: true, affiliate_url: link, updated_at: new Date().toISOString(),
       }, { onConflict: 'upc,store' });
       if (error) throw error;
