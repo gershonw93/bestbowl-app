@@ -163,6 +163,33 @@ function proteinsCompatible(a, b) {
   return pa === pb;
 }
 
+// --- life-stage guard (Adult ≠ Senior/7+ ≠ Puppy) ---
+function lifeStage(name) {
+  const t = String(name || '').toLowerCase();
+  if (/\ball\s*life\s*stages?\b|all-life-stages/.test(t)) return 'all';
+  if (/\bpuppy\b|\bkitten\b|\bgrowth\b/.test(t)) return 'puppy';
+  if (/senior|mature|aging|\b7\s*\+|\b8\s*\+|\b11\s*\+/.test(t)) return 'senior';
+  return 'adult';
+}
+function lifeStagesCompatible(a, b) {
+  const la = lifeStage(a), lb = lifeStage(b);
+  if (la === 'all' || lb === 'all') return true; // all-life-stages feeds any age
+  return la === lb;
+}
+
+// --- breed-size guard (Large Breed ≠ Small/Toy Breed) ---
+function breedSize(name) {
+  const t = String(name || '').toLowerCase();
+  if (/\b(small|toy|mini|little)\s*(?:breed|&\s*toy|bites)\b|\bsmall\s*&\s*mini\b/.test(t)) return 'small';
+  if (/\b(large|giant|big)\s*breed\b/.test(t)) return 'large';
+  return 'any';
+}
+function breedCompatible(a, b) {
+  const ba = breedSize(a), bb = breedSize(b);
+  if (ba === 'any' || bb === 'any') return true; // unspecified fits either
+  return ba === bb;
+}
+
 // Fallback: Impact marketplace product search (needs the Products scope, not the
 // catalog Search scope). Results span advertisers, so callers must Chewy-filter.
 async function marketplaceSearch(cfg, query) {
@@ -245,6 +272,8 @@ async function importChewy(opts = {}) {
         if (isBundle(nm) && !isBundle(p.name)) continue;     // skip Chewy combos/bundles
         if (!sizesCompatible(p.name, nm)) continue;          // require same-ish pack size
         if (!proteinsCompatible(p.name, nm)) continue;       // require same primary protein/flavor
+        if (!lifeStagesCompatible(p.name, nm)) continue;     // Adult ≠ Senior/7+ ≠ Puppy
+        if (!breedCompatible(p.name, nm)) continue;          // Large Breed ≠ Small Breed
         const r = bestMatch(nm, [p]);
         if (r && (!best || r.score > best.score)) best = { it: it, score: r.score };
       }
