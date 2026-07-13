@@ -104,27 +104,40 @@ async function itemSearch(cfg, query) {
   // search on the product name is: Name~"phrase". ItemSearch rejects a CatalogId
   // param; it searches all of the account's catalogs (fine — Chewy is the only one).
   const phrase = String(query).replace(/["]+/g, ' ').trim();
-  const params = new URLSearchParams({ Query: `Name~"${phrase}"`, PageSize: '50' });
+  const params = new URLSearchParams({ Query: `Name~"${phrase}"`, PageSize: '100' });
   const data = await impactGet(cfg, `/Mediapartners/${cfg.sid}/Catalogs/ItemSearch?${params.toString()}`);
   return data.Items || data.Products || data.CatalogItems || [];
 }
 
-// Query candidates for a product, tried in order until a strong match is found.
-// Apostrophes are kept (so "Hill's" matches Chewy's "Hill's"); a "skip the first
-// word" tier rescues apostrophe-first brands (Hill's → "Science Diet Adult").
+// Generic filler words that appear in different orders on Amazon vs Chewy — we
+// drop them from queries so the `Name~` contiguous match doesn't break on order.
+const FILLER = new Set([
+  'cat', 'cats', 'dog', 'dogs', 'food', 'treat', 'treats', 'wet', 'dry', 'canned',
+  'adult', 'puppy', 'kitten', 'senior', 'formula', 'recipe', 'natural', 'premium',
+  'grain', 'free', 'high', 'protein', 'complete', 'health', 'nutrition', 'dinner',
+  'entree', 'pate', 'variety', 'pack', 'with', 'and', 'the', 'for', 'made', 'real',
+  'flavor', 'flavored', 'dental', 'healthy', 'in', 'oz', 'lb', 'lbs',
+]);
+
+// Query candidates, tried in order: brand + the most distinctive (non-filler)
+// words, then brand-only as a broad fallback. Building from distinctive words —
+// not raw word order — makes the contiguous `Name~` search far more robust to
+// Amazon/Chewy naming differences (e.g. "Temptations Cat Treats, Classic" vs
+// "Temptations Classic … Cat Treats").
 function queriesFor(p) {
-  const words = String(p.name || p.brand || '')
+  const brand = String(brandOf(p.name) || '').trim();
+  const brandWords = new Set(brand.toLowerCase().split(/\s+/).filter(Boolean));
+  const words = String(p.name || '')
     .replace(/[^A-Za-z0-9' ]+/g, ' ')
     .split(/\s+/)
     .map((w) => w.replace(/^'+|'+$/g, ''))
     .filter((w) => w.length > 1);
-  // Keep this SHORT — every extra tier is another API call per product and Impact
-  // rate-limits hourly. Two tiers: a specific query, then a broad brand fallback.
-  const tiers = [
-    words.slice(0, 4),
-    words.slice(0, 2), // brand only
-  ];
-  return [...new Set(tiers.map((t) => t.join(' ')).filter((s) => s))];
+  const distinctive = words.filter(
+    (w) => !brandWords.has(w.toLowerCase()) && !FILLER.has(w.toLowerCase()),
+  );
+  const q1 = [brand, ...distinctive.slice(0, 2)].filter(Boolean).join(' ');
+  const q2 = brand || words.slice(0, 2).join(' ');
+  return [...new Set([q1, q2].map((s) => s.trim()).filter(Boolean))];
 }
 
 // --- pack-size + bundle guards (so a 5-lb bag isn't matched to a 15-lb bundle) ---
@@ -272,7 +285,7 @@ async function importChewy(opts = {}) {
   const searchFn = method === 'marketplace' ? marketplaceSearch : itemSearch;
   cfg.log(`[chewy] ${method} search for ${products.length} products (catalog ${cfg.catalogId})`);
 
-  let searched = 0, matched = 0, missed = 0, deferred = 0, consecutive429 = 0;
+  let searched = 0, matched = 0, missed = 0, deferred = 0, consecutive429 = 0, zeroResults = 0;
   let aborted = false;
   const errors = [];
   let loggedShape = false;
@@ -285,7 +298,7 @@ async function importChewy(opts = {}) {
     const queries = queriesFor(p);
     if (!queries.length) { missed += 1; return; }
     // Try each query tier, keep the best fuzzy match; stop early on a strong hit.
-    let best = null;
+    let best = null, anyItems = false;
     for (const q of queries) {
       if (outOfTime()) break;
       let items = [];
@@ -297,6 +310,7 @@ async function importChewy(opts = {}) {
         }
         errors.push({ upc: p.upc, message: err.message }); cfg.log(`[ERR] search "${q}": ${err.message}`); continue;
       }
+      if (items.length) anyItems = true;
       if (!loggedShape && items[0]) { loggedShape = true; cfg.log(`[shape] first result: ${JSON.stringify(items[0]).slice(0, 1500)}`); }
       for (const it of items) {
         if (method === 'marketplace' && !looksChewy(it)) continue; // marketplace spans stores
@@ -315,7 +329,8 @@ async function importChewy(opts = {}) {
     if (!best) {
       if (outOfTime()) { deferred += 1; return; } // ran out of budget mid-product, not a real miss
       missed += 1;
-      cfg.log(`[chewy] miss  "${String(p.name).slice(0, 50)}"`);
+      if (!anyItems) zeroResults += 1; // no search hits at all vs. hits rejected by guards
+      cfg.log(`[chewy] miss  "${String(p.name).slice(0, 50)}"  (${anyItems ? 'no spec match' : 'no search results'})`);
       return;
     }
 
@@ -345,8 +360,8 @@ async function importChewy(opts = {}) {
   });
 
   const note = aborted ? ' (stopped early: rate-limited — wait & re-run)' : deferred ? ` (${deferred} left for next run — just hit the URL again)` : '';
-  cfg.log(`Done — ${searched} searched, ${matched} matched, ${missed} missed, ${deferred} deferred, ${errors.length} errors${note}`);
-  return { searched, matched, missed, deferred, remaining: deferred, rate_limited: aborted, errors: errors.length, to_process: products.length };
+  cfg.log(`Done — ${searched} searched, ${matched} matched, ${missed} missed (${zeroResults} no-results / ${missed - zeroResults} spec-rejected), ${deferred} deferred, ${errors.length} errors${note}`);
+  return { searched, matched, missed, missed_no_results: zeroResults, missed_spec_rejected: missed - zeroResults, deferred, remaining: deferred, rate_limited: aborted, errors: errors.length, to_process: products.length };
 }
 
 /**
