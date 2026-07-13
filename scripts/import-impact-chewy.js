@@ -27,7 +27,36 @@ require('dotenv').config();
 
 const fetch = require('node-fetch');
 const { createClient } = require('@supabase/supabase-js');
-const { bestMatch } = require('./seed-real-products.js');
+const { bestMatch, brandOf, foodTypeOf, lifeStageOf } = require('./seed-real-products.js');
+
+// Category searches for adding Chewy-only products (ones our Amazon seed lacks).
+const EXTRA_SEARCHES = [
+  { pet: 'dog', foodType: 'dry', q: 'dry dog food' },
+  { pet: 'dog', foodType: 'wet', q: 'wet dog food' },
+  { pet: 'cat', foodType: 'dry', q: 'dry cat food' },
+  { pet: 'cat', foodType: 'wet', q: 'wet cat food' },
+  { pet: 'dog', foodType: 'treat', q: 'dog treats' },
+  { pet: 'cat', foodType: 'treat', q: 'cat treats' },
+];
+
+// Preliminary brand-level quality scores (same approach used to seed the first
+// 40 products) so newly-added Chewy items don't display as "0.0".
+const BRAND_SCORES = {
+  'orijen': 9.0, 'acana': 8.5, 'ziwi': 8.7, "stella & chewy's": 8.5, 'instinct': 8.3,
+  'vital essentials': 8.2, 'wellness': 8.0, 'nulo': 8.0, 'taste of the wild': 7.8, 'merrick': 7.8,
+  'blue buffalo': 7.5, 'full moon': 7.5, 'american journey': 7.2, 'purina pro plan': 7.2,
+  "hill's science diet": 7.0, "hill's": 7.0, 'diamond': 7.0, 'nutro': 7.0, 'kirkland': 7.0,
+  'greenies': 6.8, 'inaba': 7.0, 'purina one': 6.5, 'crave': 6.5, 'rachael ray nutrish': 6.5,
+  'iams': 6.2, 'sheba': 6.0, 'pedigree': 5.5, 'fancy feast': 5.5, 'cesar': 5.5, 'temptations': 5.5,
+  'cat chow': 5.5, 'purina': 5.5, 'beneful': 5.2, 'friskies': 5.0, 'meow mix': 5.0, 'whiskas': 5.0,
+  'milk-bone': 5.0,
+};
+function brandScore(brand) {
+  const b = String(brand || '').toLowerCase().trim();
+  if (BRAND_SCORES[b] != null) return BRAND_SCORES[b];
+  for (const k of Object.keys(BRAND_SCORES)) { if (b.includes(k) || k.includes(b)) return BRAND_SCORES[k]; }
+  return 6.0; // neutral default
+}
 
 const num = (v) => {
   if (v == null || v === '') return null;
@@ -74,17 +103,44 @@ async function itemSearch(cfg, query) {
   return data.Items || data.Products || data.CatalogItems || [];
 }
 
-// Punctuation-free query candidates for a product: a specific one (brand + a few
-// distinctive words) and a broad fallback (just the brand), so we still find a
-// match when the longer phrase isn't a contiguous substring of the Chewy title.
+// Query candidates for a product, tried in order until a strong match is found.
+// Apostrophes are kept (so "Hill's" matches Chewy's "Hill's"); a "skip the first
+// word" tier rescues apostrophe-first brands (Hill's → "Science Diet Adult").
 function queriesFor(p) {
   const words = String(p.name || p.brand || '')
-    .replace(/[^A-Za-z0-9 ]+/g, ' ')
+    .replace(/[^A-Za-z0-9' ]+/g, ' ')
     .split(/\s+/)
+    .map((w) => w.replace(/^'+|'+$/g, ''))
     .filter((w) => w.length > 1);
-  const primary = words.slice(0, 4).join(' ');
-  const fallback = words.slice(0, 2).join(' ');
-  return [...new Set([primary, fallback].filter(Boolean))];
+  const tiers = [
+    words.slice(0, 4),
+    words.slice(0, 3),
+    words.slice(1, 4), // drop the first word
+    words.slice(0, 2), // brand only
+  ];
+  return [...new Set(tiers.map((t) => t.join(' ')).filter((s) => s))];
+}
+
+// --- pack-size + bundle guards (so a 5-lb bag isn't matched to a 15-lb bundle) ---
+// Chewy often lists combos ("Bundle: Dry Food + Canned…"); reject those unless
+// our product is itself a bundle.
+const isBundle = (name) => /\bbundle\b|\bcombo\b|\bgift set\b|\s\+\s/i.test(String(name || ''));
+// Approximate total package size in ounces from the name (lbs → oz, or oz × count).
+function sizeOz(name) {
+  const t = String(name || '').toLowerCase();
+  let m;
+  if ((m = t.match(/(\d+(?:\.\d+)?)\s*-?\s*(?:lb\b|lbs\b|pound)/))) return parseFloat(m[1]) * 16;
+  const oz = (m = t.match(/(\d+(?:\.\d+)?)\s*-?\s*(?:oz\b|ounce)/)) ? parseFloat(m[1]) : null;
+  const cnt = (m = t.match(/(?:case of|pack of|count of|,\s*)(\d+)/)) ? parseInt(m[1], 10) : null;
+  if (oz != null) return oz * (cnt || 1);
+  return null;
+}
+// Same-ish pack size (within ~20%). Unknown on either side → don't block.
+function sizesCompatible(a, b) {
+  const A = sizeOz(a), B = sizeOz(b);
+  if (!A || !B) return true;
+  const hi = Math.max(A, B), lo = Math.min(A, B);
+  return lo / hi >= 0.8;
 }
 
 // Fallback: Impact marketplace product search (needs the Products scope, not the
@@ -155,25 +211,31 @@ async function importChewy(opts = {}) {
   await mapLimit(products, 5, async (p) => {
     const queries = queriesFor(p);
     if (!queries.length) { missed += 1; return; }
-    let items = [];
-    for (const q of queries) {
-      try { items = await searchFn(cfg, q); searched += 1; }
-      catch (err) { errors.push({ upc: p.upc, message: err.message }); cfg.log(`[ERR] search "${q}": ${err.message}`); items = []; break; }
-      if (items.length) break; // got hits — no need for the broader fallback query
-    }
-
-    if (!loggedShape && items[0]) { loggedShape = true; cfg.log(`[shape] first result: ${JSON.stringify(items[0]).slice(0, 400)}`); }
-
-    // pick the Chewy result that best matches THIS product (name Jaccard >= 0.5)
+    // Try each query tier, keep the best fuzzy match; stop early on a strong hit.
     let best = null;
-    for (const it of items) {
-      if (method === 'marketplace' && !looksChewy(it)) continue; // marketplace spans stores
-      const nm = it.Name || it.ProductName || it.Title;
-      if (!nm) continue;
-      const r = bestMatch(nm, [p]);
-      if (r && (!best || r.score > best.score)) best = { it: it, score: r.score };
+    for (const q of queries) {
+      let items = [];
+      try { items = await searchFn(cfg, q); searched += 1; }
+      catch (err) { errors.push({ upc: p.upc, message: err.message }); cfg.log(`[ERR] search "${q}": ${err.message}`); continue; }
+      if (!loggedShape && items[0]) { loggedShape = true; cfg.log(`[shape] first result: ${JSON.stringify(items[0]).slice(0, 400)}`); }
+      for (const it of items) {
+        if (method === 'marketplace' && !looksChewy(it)) continue; // marketplace spans stores
+        const nm = it.Name || it.ProductName || it.Title;
+        if (!nm) continue;
+        if (isBundle(nm) && !isBundle(p.name)) continue;   // skip Chewy combos/bundles
+        if (!sizesCompatible(p.name, nm)) continue;        // require same-ish pack size
+        const r = bestMatch(nm, [p]);
+        if (r && (!best || r.score > best.score)) best = { it: it, score: r.score };
+      }
+      if (best && best.score >= 0.6) break; // strong enough — no need to try broader tiers
     }
-    if (!best) { missed += 1; cfg.log(`[chewy] miss  "${String(p.name).slice(0, 50)}"`); return; }
+    if (!best) {
+      missed += 1;
+      // Drop any stale Chewy price from an earlier, looser run (e.g. a bad bundle match).
+      try { await supabase.from('prices').delete().eq('upc', p.upc).eq('store', 'chewy'); } catch (_e) {}
+      cfg.log(`[chewy] miss  "${String(p.name).slice(0, 50)}"`);
+      return;
+    }
 
     const it = best.it;
     const price = num(it.CurrentPrice ?? it.SalePrice ?? it.Price ?? it.OriginalPrice);
@@ -201,10 +263,86 @@ async function importChewy(opts = {}) {
   return { searched, matched, missed, errors: errors.length };
 }
 
+/**
+ * Add Chewy-only products (ones our Amazon seed doesn't have): search Chewy by
+ * category, skip anything we already stock, and insert the rest as new products
+ * with a Chewy price + tracked link + a preliminary brand-level score.
+ */
+async function seedChewyExtras(opts = {}) {
+  const cfg = {
+    sid: opts.sid || process.env.IMPACT_ACCOUNT_SID,
+    token: opts.token || process.env.IMPACT_AUTH_TOKEN,
+    supabaseUrl: opts.supabaseUrl || process.env.SUPABASE_URL,
+    supabaseKey: opts.supabaseKey || process.env.SUPABASE_SERVICE_ROLE_KEY,
+    perCategory: opts.perCategory != null ? opts.perCategory : (process.env.CHEWY_EXTRAS_PER_CATEGORY ? parseInt(process.env.CHEWY_EXTRAS_PER_CATEGORY, 10) : 12),
+    log: opts.log || ((m) => console.log(m)),
+  };
+  if (!cfg.sid || !cfg.token) throw new Error('Missing IMPACT_ACCOUNT_SID or IMPACT_AUTH_TOKEN');
+  if (!cfg.supabaseUrl || !cfg.supabaseKey) throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+
+  const supabase = createClient(cfg.supabaseUrl, cfg.supabaseKey, { auth: { persistSession: false } });
+  const { data: existing, error: pErr } = await supabase.from('products').select('upc,name,brand');
+  if (pErr) throw pErr;
+  const products = existing || [];
+  cfg.log(`[extras] adding Chewy-only products (up to ${cfg.perCategory}/category); ${products.length} existing to dedupe against`);
+
+  let added = 0, skipped = 0;
+  const errors = [];
+  const perCat = {};
+
+  for (const s of EXTRA_SEARCHES) {
+    let items = [];
+    try { items = await itemSearch(cfg, s.q); }
+    catch (err) { errors.push({ q: s.q, message: err.message }); cfg.log(`[ERR] extras search "${s.q}": ${err.message}`); perCat[s.q] = 0; continue; }
+
+    let catAdded = 0;
+    for (const it of items) {
+      if (catAdded >= cfg.perCategory) break;
+      const name = it.Name || it.ProductName;
+      if (!name) continue;
+      if (isBundle(name)) { skipped += 1; continue; } // don't add combo/bundle listings
+      // skip anything we already stock — the matching phase attaches Chewy prices to those
+      const dup = bestMatch(name, products);
+      if (dup && dup.score >= 0.6) { skipped += 1; continue; }
+
+      const gtin = String(it.Gtin || '').replace(/\D/g, '');
+      const upc = (gtin.length >= 8 && gtin.length <= 14) ? gtin : `chewy_${it.CatalogItemId || it.Id}`;
+      if (products.some((x) => x.upc === upc)) { skipped += 1; continue; }
+
+      const brand = it.Manufacturer || brandOf(name);
+      const category = `${s.pet}_${s.foodType || foodTypeOf(name)}`;
+      const image = it.ImageUrl || it.ImageURL || null;
+      const price = num(it.CurrentPrice ?? it.SalePrice ?? it.Price ?? it.OriginalPrice);
+      const link = it.Url || it.TrackingUrl || it.DirectUrl || null;
+      try {
+        let e;
+        ({ error: e } = await supabase.from('products').upsert({ upc, name, brand, category, life_stage: lifeStageOf(name), image_url: image, updated_at: new Date().toISOString() }, { onConflict: 'upc' }));
+        if (e) throw e;
+        ({ error: e } = await supabase.from('prices').upsert({ upc, store: 'chewy', price, autoship_price: null, subscribe_save_price: null, in_stock: true, affiliate_url: link, updated_at: new Date().toISOString() }, { onConflict: 'upc,store' }));
+        if (e) throw e;
+        ({ error: e } = await supabase.from('quality_scores').upsert({ upc, overall_score: brandScore(brand), recall_count: 0, aafco_certified: true, scoring_notes: 'preliminary brand-level estimate (Chewy import) — pending full scoring', scored_at: new Date().toISOString() }, { onConflict: 'upc' }));
+        if (e) throw e;
+
+        products.push({ upc, name, brand }); // dedupe subsequent items against this one
+        added += 1; catAdded += 1;
+        cfg.log(`[extras+] ${category} "${String(name).slice(0, 48)}"  $${price ?? '—'}  (${brand})`);
+      } catch (err) {
+        errors.push({ name, message: err.message });
+        cfg.log(`[ERR] add "${String(name).slice(0, 40)}": ${err.message}`);
+      }
+    }
+    perCat[s.q] = catAdded;
+  }
+
+  cfg.log(`Done — ${added} Chewy-only products added, ${skipped} skipped (already stocked), ${errors.length} errors`);
+  return { added, skipped, perCategory: perCat, errors: errors.length };
+}
+
 if (require.main === module) {
-  importChewy()
+  const run = process.argv[2] === 'extras' ? seedChewyExtras() : importChewy();
+  Promise.resolve(run)
     .then((r) => { if (r && r.errors > 0) process.exit(1); })
     .catch((err) => { console.error('[FATAL]', err.message); process.exit(1); });
 }
 
-module.exports = { importChewy, listCatalogs };
+module.exports = { importChewy, seedChewyExtras, listCatalogs };
