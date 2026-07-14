@@ -870,8 +870,12 @@
     (p.prices || []).filter((x) => !x.flavor_differs).forEach((x) => { const e = effOf(x); if (e > maxEff) { maxEff = e; maxStore = x.store; } });
     const perLb = (p.category || "").endsWith("dry");
     const unitStr = (x) => { const v = perLb ? x.unit_price_lb : x.unit_price_oz; return v != null ? `$${Number(v).toFixed(2)}/${perLb ? "lb" : "oz"}` : ""; };
+    // "Best" / "best per unit" only mean something when there are 2+ stores to
+    // compare — on a single listing they're just noise, so suppress them.
+    const multi = (p.prices || []).length > 1;
     const opts = (p.prices || []).map((x) => {
-      const best = x.store === p.best_value_store;
+      const best = x.store === p.best_value_store && multi;
+      const bestUnit = !!x.best_unit && multi;
       const diff = !!x.flavor_differs;
       let sub = "";
       if (x.autoship_price != null) sub = `autoship <span class="strike">${money(x.price)}</span>`;
@@ -879,7 +883,7 @@
       else sub = `value score ${x.value_score != null ? Number(x.value_score).toFixed(1) : "–"}`;
       const u = unitStr(x);
       const flavorTag = diff && x.flavor ? `<span class="opt-flavor">${esc(x.flavor)} · other flavor</span>` : "";
-      const ozBadge = x.best_unit ? `<span class="opt-oz-badge">BEST /${perLb ? "LB" : "OZ"}</span>` : "";
+      const ozBadge = bestUnit ? `<span class="opt-oz-badge">BEST /${perLb ? "LB" : "OZ"}</span>` : "";
       return `
         <div class="opt ${best ? "best" : ""} ${diff ? "diff" : ""}">
           <div class="opt-logo display">${esc(cap(x.store).charAt(0))}</div>
@@ -889,7 +893,7 @@
           </div>
           <div class="opt-price-wrap">
             <div class="opt-price display">${money(effOf(x))}</div>
-            ${u ? `<div class="opt-unit ${x.best_unit ? "win" : ""}">${u}</div>` : ""}
+            ${u ? `<div class="opt-unit ${bestUnit ? "win" : ""}">${u}</div>` : ""}
           </div>
           <button class="opt-buy ${best ? "best" : ""}" ${x.affiliate_url ? `data-url="${esc(x.affiliate_url)}"` : ""}>Buy</button>
         </div>`;
