@@ -1,16 +1,8 @@
-// BestBowl search Edge Function (v2 — multi-store value scoring)
+// BestBowl search Edge Function (v9 — unit price + flavor-aware compare)
 //
-// GET /functions/v1/search
-//   ?q=<text>              search name OR brand (ILIKE %q%)
-//   &pet_type=<dog|cat>    optional, maps to category prefix dog_/cat_
-//   &life_stage=<stage>    optional
-//   &sort=<value|price|quality>   optional, default 'value'
-//   &store=<store>         optional, only products carried by that store
-//
-// For each product it joins all `prices` rows + the `quality_scores` row,
-// computes a per-store value_score by comparing the *effective* price
-// (autoship → subscribe&save → price) ACROSS all stores for that product, and
-// returns best price / best value plus extra comparison fields.
+// GET /functions/v1/search  ?q &pet_type &life_stage &sort &store
+// For each product: joins prices + quality_scores, computes per-store value,
+// price-per-oz, and labels sibling flavors (shown but never the headline price).
 //
 // Deployed with --no-verify-jwt so the app can call it with the anon key.
 
@@ -31,7 +23,6 @@ const json = (body: unknown, status = 200) =>
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-// Pet type derived from the category prefix (dog_dry -> dog, cat_wet -> cat).
 const petTypeOf = (category: string | null): string | null => {
   if (!category) return null;
   if (category.startsWith("dog")) return "dog";
@@ -47,18 +38,23 @@ interface PriceRow {
   subscribe_save_price: number | null;
   in_stock: boolean;
   affiliate_url: string | null;
+  pack_size_oz: number | null;
+  flavor: string | null;
 }
 
 // Effective price = the price a shopper actually pays: autoship beats
-// subscribe&save beats the regular price (per the spec's || precedence).
+// subscribe&save beats the regular price.
 const effective = (p: PriceRow): number =>
   Number(p.autoship_price || p.subscribe_save_price || p.price);
 
-// Tie-break for the "BEST"/Grab-it store when the effective price is EXACTLY
-// equal across stores: promote the one that pays the best commission (a true
-// tie is free money either way). Lower index = higher priority. Ordered by
-// rough pet commission — adjust to your live affiliate rates:
-//   Amazon ~3%  >  Walmart  >  PetSmart  >  Chewy ~1%
+// Price per ounce — the honest way to compare across pack sizes.
+const unitOz = (p: PriceRow): number | null => {
+  const sz = Number(p.pack_size_oz);
+  return sz > 0 ? effective(p) / sz : null;
+};
+
+// Tie-break for the BEST store on an exact price tie: promote the one that pays
+// the best commission. Amazon ~3% > Walmart > PetSmart > Chewy ~1%.
 const STORE_PRIORITY = ["amazon", "walmart", "petsmart", "chewy"];
 const storeRank = (s: string): number => {
   const i = STORE_PRIORITY.indexOf(String(s || "").toLowerCase());
@@ -75,7 +71,7 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   const q = (url.searchParams.get("q") ?? "").trim();
-  const petType = url.searchParams.get("pet_type"); // 'dog' | 'cat' | null
+  const petType = url.searchParams.get("pet_type");
   const lifeStage = url.searchParams.get("life_stage");
   const brand = url.searchParams.get("brand");
   const sort = (url.searchParams.get("sort") ?? "value").toLowerCase();
@@ -86,7 +82,6 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_ANON_KEY")!,
   );
 
-  // ---- products query ----
   let productQuery = supabase
     .from("products")
     .select("upc, name, brand, image_url, category, life_stage");
@@ -118,8 +113,6 @@ Deno.serve(async (req) => {
 
   const upcs = products.map((p) => p.upc);
 
-  // ---- prices + quality_scores ----
-  // prices + quality_scores + ingredients (joined client-side by upc)
   const [
     { data: prices, error: priceErr },
     { data: scores, error: scoreErr },
@@ -128,7 +121,7 @@ Deno.serve(async (req) => {
     supabase
       .from("prices")
       .select(
-        "upc, store, price, autoship_price, subscribe_save_price, in_stock, affiliate_url",
+        "upc, store, price, autoship_price, subscribe_save_price, in_stock, affiliate_url, pack_size_oz, flavor",
       )
       .in("upc", upcs),
     supabase
@@ -154,34 +147,49 @@ Deno.serve(async (req) => {
   // deno-lint-ignore no-explicit-any
   const scoreByUpc = new Map<string, any>();
   for (const row of scores ?? []) scoreByUpc.set(row.upc, row);
-  // Presence of an ingredients row means the score used real OPFF data.
   // deno-lint-ignore no-explicit-any
   const ingByUpc = new Map<string, any>();
   for (const row of ingredients ?? []) ingByUpc.set(row.upc, row);
 
   const storesChecked = new Set<string>();
 
-  // ---- assemble results ----
   let results = products.map((product) => {
     const productPrices = pricesByUpc.get(product.upc) ?? [];
     const qs = scoreByUpc.get(product.upc);
     const ing = ingByUpc.get(product.upc);
     const qualityScore = qs ? Number(qs.overall_score) : 0;
 
-    // Compare effective prices across all stores for this product.
-    const allPrices = productPrices.map(effective);
+    // Reference flavor = what THIS product is (its Amazon listing, else the first
+    // priced row that names a flavor). A row whose flavor differs is a sibling
+    // variant — shown & labeled, but never the headline cheapest.
+    const refFlavor =
+      productPrices.find((p) => p.store === "amazon" && p.flavor)?.flavor ??
+      productPrices.find((p) => p.flavor)?.flavor ?? null;
+    const flavorDiffers = (p: PriceRow): boolean =>
+      !!(p.flavor && refFlavor && p.flavor !== refFlavor);
+
+    const sameFlavor = productPrices.filter((p) => !flavorDiffers(p));
+    const scored = sameFlavor.length ? sameFlavor : productPrices;
+
+    const allPrices = scored.map(effective);
     const minPrice = allPrices.length ? Math.min(...allPrices) : 0;
     const maxPrice = allPrices.length ? Math.max(...allPrices) : 0;
 
-    // +0.01 guard avoids divide-by-zero when every store is the same price.
     const priceScore = (p: PriceRow) =>
       10 - ((effective(p) - minPrice) / (maxPrice - minPrice + 0.01)) * 5;
-
     const valueScore = (price: PriceRow) =>
       round2(qualityScore * 0.5 + priceScore(price) * 0.5);
 
+    let bestUnit = Infinity;
+    for (const p of scored) {
+      const u = unitOz(p);
+      if (u != null && u < bestUnit) bestUnit = u;
+    }
+
     let pricesOut = productPrices.map((p) => {
       storesChecked.add(p.store);
+      const u = unitOz(p);
+      const differs = flavorDiffers(p);
       return {
         store: p.store,
         price: p.price,
@@ -191,22 +199,28 @@ Deno.serve(async (req) => {
         effective_price: round2(effective(p)),
         value_score: valueScore(p),
         affiliate_url: p.affiliate_url,
+        pack_size_oz: p.pack_size_oz != null ? Number(p.pack_size_oz) : null,
+        unit_price_oz: u != null ? Math.round(u * 1000) / 1000 : null,
+        unit_price_lb: u != null ? round2(u * 16) : null,
+        flavor: p.flavor,
+        flavor_differs: differs,
+        best_unit: !differs && u != null && bestUnit !== Infinity &&
+          Math.abs(u - bestUnit) < 1e-9,
       };
     });
 
-    // Best store first; on an exact tie, the higher-commission store wins.
     pricesOut.sort((a, b) =>
-      (b.value_score - a.value_score) || (storeRank(a.store) - storeRank(b.store))
+      (Number(a.flavor_differs) - Number(b.flavor_differs)) ||
+      (b.value_score - a.value_score) ||
+      (storeRank(a.store) - storeRank(b.store))
     );
 
     const cheapest = allPrices.length ? round2(minPrice) : null;
-    const savings =
-      allPrices.length > 1 ? round2(maxPrice - minPrice) : 0;
+    const savings = allPrices.length > 1 ? round2(maxPrice - minPrice) : 0;
 
-    // Best price store (lowest effective price).
     let bestPriceStore: string | null = null;
     let bestPrice: number | null = null;
-    for (const p of productPrices) {
+    for (const p of scored) {
       const eff = round2(effective(p));
       if (
         bestPrice == null || eff < bestPrice ||
@@ -217,7 +231,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const best = pricesOut[0] ?? null;
+    const best = pricesOut.find((p) => !p.flavor_differs) ?? pricesOut[0] ?? null;
 
     return {
       upc: product.upc,
@@ -233,7 +247,6 @@ Deno.serve(async (req) => {
             safety_score: qs.safety_score != null ? Number(qs.safety_score) : null,
             aafco_score: qs.aafco_score != null ? Number(qs.aafco_score) : null,
             overall_quality: qualityScore,
-            // prefer real ingredient values when an OPFF row exists
             first_ingredient: ing?.first_ingredient ?? qs.first_ingredient ?? null,
             protein_percent:
               ing?.protein_percent != null
@@ -248,6 +261,7 @@ Deno.serve(async (req) => {
       price_count: productPrices.length,
       cheapest_option: cheapest,
       savings_vs_most_expensive: savings,
+      best_unit_price_oz: bestUnit !== Infinity ? Math.round(bestUnit * 1000) / 1000 : null,
       prices: pricesOut,
       best_price_store: bestPriceStore,
       best_price: bestPrice,
@@ -256,33 +270,19 @@ Deno.serve(async (req) => {
     };
   });
 
-  // ---- drop products with no usable price ----
-  // A price-comparison card needs at least one real, in-stock price; without one
-  // the app renders "$NaN". This happens when an import creates a product but its
-  // price row is missing (e.g. a half-completed or later-cleaned import).
+  // Drop products with no usable price (would render as "$NaN").
   results = results.filter((r) => r.best_price != null && r.best_price > 0);
 
-  // ---- optional store filter: only products carried by that store ----
   if (storeFilter) {
-    results = results.filter((r) =>
-      r.prices.some((p) => p.store === storeFilter)
-    );
+    results = results.filter((r) => r.prices.some((p) => p.store === storeFilter));
   }
 
-  // ---- sort results ----
   if (sort === "price") {
-    // cheapest products first
-    results.sort(
-      (a, b) =>
-        (a.cheapest_option ?? Infinity) - (b.cheapest_option ?? Infinity),
-    );
+    results.sort((a, b) => (a.cheapest_option ?? Infinity) - (b.cheapest_option ?? Infinity));
   } else if (sort === "quality") {
     results.sort((a, b) => b.quality_score - a.quality_score);
   } else {
-    // default: best value first
-    results.sort(
-      (a, b) => (b.best_value_score ?? 0) - (a.best_value_score ?? 0),
-    );
+    results.sort((a, b) => (b.best_value_score ?? 0) - (a.best_value_score ?? 0));
   }
 
   meta.total_results = results.length;

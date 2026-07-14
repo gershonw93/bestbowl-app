@@ -232,6 +232,13 @@
   .opt-sub{font-size:11.5px;color:var(--mut);font-weight:600;margin-top:2px;}
   .opt-sub .strike{text-decoration:line-through;}
   .opt-price{font-size:18px;font-weight:800;color:var(--ink);}
+  .opt-price-wrap{display:flex;flex-direction:column;align-items:flex-end;gap:1px;flex-shrink:0;}
+  .opt-unit{font-size:11px;font-weight:700;color:var(--mut);}
+  .opt-unit.win{color:var(--green);}
+  .opt-oz-badge{background:var(--green);color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:999px;letter-spacing:.3px;}
+  .opt-flavor{background:#fde4d3;color:#b5651d;font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:999px;letter-spacing:.2px;text-transform:capitalize;}
+  .opt.diff{opacity:.85;}
+  .opt.diff .opt-price{color:var(--mut);}
   .opt-buy{border:none;padding:11px 17px;border-radius:15px;font-weight:800;font-size:14px;background:var(--field);color:var(--body);}
   .opt-buy.best{background:var(--green);color:#fff;box-shadow:0 4px 0 var(--green-sh);}
   .save-pill{text-align:center;margin-top:6px;background:var(--mint);color:var(--dark);font-weight:800;font-size:15px;padding:12px;border-radius:16px;}
@@ -858,22 +865,32 @@
       barRow("Protein content", (prot / 50) * 100, barColor("prot", prot), prot + "%") +
       barRow("Recalls (5 yr)", rec === 0 ? 100 : rec === 1 ? 50 : 0, barColor("rec", rec), rec === 0 ? "None" : rec);
 
+    // "You save" and the most-expensive baseline ignore different-flavor siblings.
     let maxStore = null, maxEff = -Infinity;
-    (p.prices || []).forEach((x) => { const e = effOf(x); if (e > maxEff) { maxEff = e; maxStore = x.store; } });
+    (p.prices || []).filter((x) => !x.flavor_differs).forEach((x) => { const e = effOf(x); if (e > maxEff) { maxEff = e; maxStore = x.store; } });
+    const perLb = (p.category || "").endsWith("dry");
+    const unitStr = (x) => { const v = perLb ? x.unit_price_lb : x.unit_price_oz; return v != null ? `$${Number(v).toFixed(2)}/${perLb ? "lb" : "oz"}` : ""; };
     const opts = (p.prices || []).map((x) => {
       const best = x.store === p.best_value_store;
+      const diff = !!x.flavor_differs;
       let sub = "";
       if (x.autoship_price != null) sub = `autoship <span class="strike">${money(x.price)}</span>`;
       else if (x.subscribe_save_price != null) sub = `sub &amp; save <span class="strike">${money(x.price)}</span>`;
       else sub = `value score ${x.value_score != null ? Number(x.value_score).toFixed(1) : "–"}`;
+      const u = unitStr(x);
+      const flavorTag = diff && x.flavor ? `<span class="opt-flavor">${esc(x.flavor)} · other flavor</span>` : "";
+      const ozBadge = x.best_unit ? `<span class="opt-oz-badge">BEST /${perLb ? "LB" : "OZ"}</span>` : "";
       return `
-        <div class="opt ${best ? "best" : ""}">
+        <div class="opt ${best ? "best" : ""} ${diff ? "diff" : ""}">
           <div class="opt-logo display">${esc(cap(x.store).charAt(0))}</div>
           <div class="opt-mid">
-            <div class="opt-store"><span class="nm">${esc(cap(x.store))}</span>${best ? '<span class="opt-best-badge">BEST</span>' : ""}</div>
+            <div class="opt-store"><span class="nm">${esc(cap(x.store))}</span>${best ? '<span class="opt-best-badge">BEST</span>' : ""}${ozBadge}${flavorTag}</div>
             <div class="opt-sub">${sub}</div>
           </div>
-          <div class="opt-price display">${money(effOf(x))}</div>
+          <div class="opt-price-wrap">
+            <div class="opt-price display">${money(effOf(x))}</div>
+            ${u ? `<div class="opt-unit ${x.best_unit ? "win" : ""}">${u}</div>` : ""}
+          </div>
           <button class="opt-buy ${best ? "best" : ""}" ${x.affiliate_url ? `data-url="${esc(x.affiliate_url)}"` : ""}>Buy</button>
         </div>`;
     }).join("");

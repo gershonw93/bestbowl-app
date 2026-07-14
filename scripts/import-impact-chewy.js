@@ -182,6 +182,21 @@ function proteinsCompatible(a, b) {
   return pa === pb;
 }
 
+// The salient flavor/variant of a listing: its primary protein, else a
+// distinctive non-protein flavor word. Used to LABEL a match as a different
+// flavor (e.g. Chewy carries only the Salmon version of a Chicken product)
+// rather than hide it. Returns null when nothing stands out.
+const FLAVOR_WORDS = ['catnip', 'dairy', 'cheese', 'cheddar', 'pumpkin', 'bacon',
+  'peanut', 'seafood', 'shrimp', 'crab', 'lobster', 'sweet potato', 'blueberry',
+  'apple', 'carrot', 'cranberry', 'honey', 'vanilla', 'egg', 'catfish'];
+function flavorOf(name) {
+  const p = primaryProtein(name);
+  if (p) return p;
+  const t = String(name || '').toLowerCase();
+  for (const f of FLAVOR_WORDS) { if (t.includes(f)) return f; }
+  return null;
+}
+
 // --- life-stage guard (Adult ≠ Senior/7+ ≠ Puppy) ---
 function lifeStage(name) {
   const t = String(name || '').toLowerCase();
@@ -346,7 +361,9 @@ async function importChewy(opts = {}) {
         if (!petTypesCompatible(prodPet, nm)) continue;      // dog food ≠ cat food
         if (isBundle(nm) && !isBundle(p.name)) continue;     // skip Chewy combos/bundles
         if (!sizesCompatible(p.name, nm)) continue;          // require same-ish pack size
-        if (!proteinsCompatible(p.name, nm)) continue;       // require same primary protein/flavor
+        // NOTE: flavor is NOT a hard reject — a sibling flavor (Chicken→Salmon)
+        // is kept and labeled; Jaccard still prefers the exact flavor when Chewy
+        // carries it, so different-flavor rows only appear when that's all there is.
         if (!lifeStagesCompatible(p.name, nm)) continue;     // Adult ≠ Senior/7+ ≠ Puppy
         if (!breedCompatible(p.name, nm)) continue;          // Large Breed ≠ Small Breed
         const r = bestMatch(nm, [p]);
@@ -376,7 +393,9 @@ async function importChewy(opts = {}) {
       const { error } = await supabase.from('prices').upsert({
         upc: p.upc, store: 'chewy', price,
         autoship_price: autoship, subscribe_save_price: null,
-        in_stock: true, affiliate_url: link, updated_at: new Date().toISOString(),
+        in_stock: true, affiliate_url: link,
+        pack_size_oz: sizeOz(it.Name), flavor: flavorOf(it.Name),
+        updated_at: new Date().toISOString(),
       }, { onConflict: 'upc,store' });
       if (error) throw error;
       if (image && !p.image_url) {
@@ -453,7 +472,7 @@ async function seedChewyExtras(opts = {}) {
         let e;
         ({ error: e } = await supabase.from('products').upsert({ upc, name, brand, category, life_stage: lifeStageOf(name), image_url: image, updated_at: new Date().toISOString() }, { onConflict: 'upc' }));
         if (e) throw e;
-        ({ error: e } = await supabase.from('prices').upsert({ upc, store: 'chewy', price, autoship_price: null, subscribe_save_price: null, in_stock: true, affiliate_url: link, updated_at: new Date().toISOString() }, { onConflict: 'upc,store' }));
+        ({ error: e } = await supabase.from('prices').upsert({ upc, store: 'chewy', price, autoship_price: null, subscribe_save_price: null, in_stock: true, affiliate_url: link, pack_size_oz: sizeOz(name), flavor: flavorOf(name), updated_at: new Date().toISOString() }, { onConflict: 'upc,store' }));
         if (e) throw e;
         ({ error: e } = await supabase.from('quality_scores').upsert({ upc, overall_score: brandScore(brand), recall_count: 0, aafco_certified: true, scoring_notes: 'preliminary brand-level estimate (Chewy import) — pending full scoring', scored_at: new Date().toISOString() }, { onConflict: 'upc' }));
         if (e) throw e;
@@ -530,7 +549,7 @@ async function healChewyPrices(opts = {}) {
         if (!petTypesCompatible(prodPet, nm)) continue;
         if (isBundle(nm) && !isBundle(p.name)) continue;
         if (!sizesCompatible(p.name, nm)) continue;
-        if (!proteinsCompatible(p.name, nm)) continue;
+        // flavor is labeled, not rejected (see importChewy note)
         if (!lifeStagesCompatible(p.name, nm)) continue;
         if (!breedCompatible(p.name, nm)) continue;
         const r = bestMatch(nm, [p]);
@@ -555,7 +574,9 @@ async function healChewyPrices(opts = {}) {
       const { error } = await supabase.from('prices').upsert({
         upc: p.upc, store: 'chewy', price,
         autoship_price: autoship, subscribe_save_price: null,
-        in_stock: true, affiliate_url: link, updated_at: new Date().toISOString(),
+        in_stock: true, affiliate_url: link,
+        pack_size_oz: sizeOz(it.Name), flavor: flavorOf(it.Name),
+        updated_at: new Date().toISOString(),
       }, { onConflict: 'upc,store' });
       if (error) throw error;
       if (image && !p.image_url) {
