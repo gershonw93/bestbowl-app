@@ -106,6 +106,34 @@ function brandOf(title) {
   return t.split(/[\s,]+/).slice(0, 2).join(' ') || null; // fallback: first two words
 }
 
+// --- pack size (oz) + flavor parsing, so a price row can show $/oz and label
+// its flavor (mirrors the logic in import-impact-chewy.js). Amazon best-seller
+// titles are often truncated by the feed, so size is frequently unknown here. ---
+function sizeOz(name) {
+  const t = String(name || '').toLowerCase();
+  let m;
+  if ((m = t.match(/(\d+(?:\.\d+)?)\s*-?\s*(?:lb\b|lbs\b|pound)/))) return parseFloat(m[1]) * 16;
+  const oz = (m = t.match(/(\d+(?:\.\d+)?)\s*-?\s*(?:oz\b|ounce)/)) ? parseFloat(m[1]) : null;
+  if (oz == null) return null;
+  let cnt = null;
+  if ((m = t.match(/(?:case|pack|count)\s*of\s*(\d+)/))) cnt = parseInt(m[1], 10);
+  else if ((m = t.match(/(\d+)\s*-?\s*(?:ct\b|count\b|packs?\b|cans?\b|pouch(?:es)?\b|tubs?\b|sticks?\b|pieces?\b)/))) cnt = parseInt(m[1], 10);
+  return oz * (cnt || 1);
+}
+const PROTEINS = ['chicken', 'turkey', 'beef', 'salmon', 'whitefish', 'tuna', 'lamb', 'duck',
+  'venison', 'rabbit', 'pork', 'bison', 'trout', 'herring', 'mackerel', 'sardine', 'cod', 'liver'];
+const FLAVOR_WORDS = ['catnip', 'dairy', 'cheese', 'cheddar', 'pumpkin', 'bacon', 'peanut',
+  'seafood', 'shrimp', 'crab', 'lobster', 'sweet potato', 'blueberry', 'apple', 'carrot',
+  'cranberry', 'honey', 'vanilla', 'egg', 'catfish'];
+function flavorOf(name) {
+  const t = String(name || '').toLowerCase();
+  let best = null, bestIdx = Infinity;
+  for (const p of PROTEINS) { const i = t.indexOf(p); if (i >= 0 && i < bestIdx) { bestIdx = i; best = p; } }
+  if (best) return best;
+  for (const f of FLAVOR_WORDS) { if (t.includes(f)) return f; }
+  return null;
+}
+
 function foodTypeOf(title) {
   const t = (title || '').toLowerCase();
   if (/\b(treat|treats|biscuit|jerky|chew|dental|stick|bone)\b/.test(t)) return 'treat';
@@ -243,7 +271,9 @@ async function seed(opts = {}) {
           const { error: priceErr } = await supabase.from('prices').upsert({
             upc: asin, store: 'amazon', price,
             autoship_price: null, subscribe_save_price: null,
-            in_stock: true, affiliate_url: affiliate, updated_at: new Date().toISOString(),
+            in_stock: true, affiliate_url: affiliate,
+            pack_size_oz: sizeOz(title), flavor: flavorOf(title),
+            updated_at: new Date().toISOString(),
           }, { onConflict: 'upc,store' });
           if (priceErr) throw priceErr;
         }
