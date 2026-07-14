@@ -242,6 +242,7 @@
   .opt-buy{border:none;padding:11px 17px;border-radius:15px;font-weight:800;font-size:14px;background:var(--field);color:var(--body);}
   .opt-buy.best{background:var(--green);color:#fff;box-shadow:0 4px 0 var(--green-sh);}
   .save-pill{text-align:center;margin-top:6px;background:var(--mint);color:var(--dark);font-weight:800;font-size:15px;padding:12px;border-radius:16px;}
+  .save-pill .save-sub{font-weight:600;opacity:.72;font-size:12.5px;}
 
   .actionbar{flex:0 0 auto;touch-action:none;width:100%;background:rgba(242,242,240,.97);backdrop-filter:blur(10px);padding:14px 16px calc(16px + env(safe-area-inset-bottom));display:flex;gap:10px;border-top:1px solid #e6e4e0;z-index:25;}
   .ab-best{flex:1;background:var(--green);color:#fff;border:none;border-radius:20px;padding:14px;font-weight:800;font-size:15px;line-height:1.2;box-shadow:0 5px 0 var(--green-sh);}
@@ -865,17 +866,20 @@
       barRow("Protein content", (prot / 50) * 100, barColor("prot", prot), prot + "%") +
       barRow("Recalls (5 yr)", rec === 0 ? 100 : rec === 1 ? 50 : 0, barColor("rec", rec), rec === 0 ? "None" : rec);
 
-    // "You save" and the most-expensive baseline ignore different-flavor siblings.
-    let maxStore = null, maxEff = -Infinity;
-    (p.prices || []).filter((x) => !x.flavor_differs).forEach((x) => { const e = effOf(x); if (e > maxEff) { maxEff = e; maxStore = x.store; } });
     const perLb = (p.category || "").endsWith("dry");
     const unitStr = (x) => { const v = perLb ? x.unit_price_lb : x.unit_price_oz; return v != null ? `$${Number(v).toFixed(2)}/${perLb ? "lb" : "oz"}` : ""; };
-    // "Best" / "best per unit" only mean something when there are 2+ stores to
-    // compare — on a single listing they're just noise, so suppress them.
-    const multi = (p.prices || []).length > 1;
+    // Compare same-flavor listings only. Lowest total = CHEAPEST; lowest $/unit =
+    // BEST value. Sticker totals are only comparable when the pack sizes are
+    // ~equal — otherwise "you save $X" is bogus (different-size bags).
+    const cmp = (p.prices || []).filter((x) => !x.flavor_differs);
+    const multi = cmp.length > 1;
+    let cheapStore = null, cheapEff = Infinity, dearEff = -Infinity;
+    cmp.forEach((x) => { const e = effOf(x); if (Number.isFinite(e)) { if (e < cheapEff) { cheapEff = e; cheapStore = x.store; } if (e > dearEff) dearEff = e; } });
+    const sizes = cmp.map((x) => x.pack_size_oz).filter((v) => v != null && v > 0);
+    const sizesComparable = sizes.length < 2 || (Math.min(...sizes) / Math.max(...sizes) >= 0.9);
     const opts = (p.prices || []).map((x) => {
-      const best = x.store === p.best_value_store && multi;
-      const bestUnit = !!x.best_unit && multi;
+      const best = x.store === cheapStore && multi;   // lowest total price
+      const bestUnit = !!x.best_unit && multi;        // lowest price per unit
       const diff = !!x.flavor_differs;
       let sub = "";
       if (x.autoship_price != null) sub = `autoship <span class="strike">${money(x.price)}</span>`;
@@ -888,7 +892,7 @@
         <div class="opt ${best ? "best" : ""} ${diff ? "diff" : ""}">
           <div class="opt-logo display">${esc(cap(x.store).charAt(0))}</div>
           <div class="opt-mid">
-            <div class="opt-store"><span class="nm">${esc(cap(x.store))}</span>${best ? '<span class="opt-best-badge">BEST</span>' : ""}${ozBadge}${flavorTag}</div>
+            <div class="opt-store"><span class="nm">${esc(cap(x.store))}</span>${best ? '<span class="opt-best-badge">CHEAPEST</span>' : ""}${ozBadge}${flavorTag}</div>
             <div class="opt-sub">${sub}</div>
           </div>
           <div class="opt-price-wrap">
@@ -898,18 +902,27 @@
           <button class="opt-buy ${best ? "best" : ""}" ${x.affiliate_url ? `data-url="${esc(x.affiliate_url)}"` : ""}>Buy</button>
         </div>`;
     }).join("");
-    const savePill = p.savings_vs_most_expensive > 0 && maxStore ? `<div class="save-pill display">You save ${money(p.savings_vs_most_expensive)}</div>` : "";
+    // "You save $X" only holds for same-size bags. When sizes differ, show the
+    // honest per-unit winner instead of a misleading total saving.
+    let savePill = "";
+    if (multi && sizesComparable && dearEff > cheapEff) {
+      savePill = `<div class="save-pill display">You save ${money(dearEff - cheapEff)}</div>`;
+    } else if (multi && !sizesComparable) {
+      const bu = cmp.find((x) => x.best_unit);
+      const uv = bu ? (perLb ? bu.unit_price_lb : bu.unit_price_oz) : null;
+      if (bu && uv != null) savePill = `<div class="save-pill display">Best value: $${Number(uv).toFixed(2)}/${perLb ? "lb" : "oz"} at ${esc(cap(bu.store))} <span class="save-sub">(bigger bag)</span></div>`;
+    }
 
     $("#pBody").innerHTML = `
       <div class="panel"><div class="panel-t display">How it scores</div>${bars}</div>
       <div class="panel"><div class="panel-t display">Best price wins</div>${opts}${savePill}</div>`;
 
-    const bestRow = (p.prices || []).find((x) => x.store === p.best_value_store) || (p.prices || [])[0] || {};
+    const bestRow = (p.prices || []).find((x) => x.store === cheapStore) || (p.prices || [])[0] || {};
     const bestEff = effOf(bestRow);
     const hasPrice = Number.isFinite(bestEff);
     const isSaved = state.saved.some((x) => x.upc === p.upc);
     $("#pAction").innerHTML = `
-      <button class="ab-best display" id="abBest" ${hasPrice ? "" : "disabled"} ${hasPrice && bestRow.affiliate_url ? `data-url="${esc(bestRow.affiliate_url)}"` : ""}>${hasPrice ? `Grab it — ${money(bestEff)}<small>cheapest at ${esc(cap(p.best_value_store || ""))}</small>` : `Price unavailable<small>check back soon</small>`}</button>
+      <button class="ab-best display" id="abBest" ${hasPrice ? "" : "disabled"} ${hasPrice && bestRow.affiliate_url ? `data-url="${esc(bestRow.affiliate_url)}"` : ""}>${hasPrice ? `Grab it — ${money(bestEff)}<small>cheapest at ${esc(cap(cheapStore || bestRow.store || ""))}</small>` : `Price unavailable<small>check back soon</small>`}</button>
       <button class="ab-sec ${isSaved ? "on" : ""}" id="abSave">${isSaved ? HEART_F("#1D9E75", 20) : HEART_O("#444", 20)}<span>Save</span></button>
       <button class="ab-sec" id="abAlert">${BELL("#444", 20)}<span>Alert</span></button>`;
   }
